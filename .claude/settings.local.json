@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 8 npx electron .)",
+      "Bash(copy \"C:\\\\Users\\\\Ryzen 3600\\\\Desktop\\\\task-flow\\\\release\\\\.icon-ico\\\\icon.ico\" \"C:\\\\Users\\\\Ryzen 3600\\\\Desktop\\\\task-flow\\\\build\\\\icon.ico\")",
+      "Bash(node -e \"try { require\\(''sharp''\\); console.log\\(''sharp available''\\); } catch\\(e\\) { console.log\\(''no sharp''\\); }\")",
+      "Bash(npm install:*)",
+      "Bash(node -e \":*)",
+      "Bash(npx vite:*)",
+      "Bash(tasklist)",
+      "Bash(taskkill //F //IM electron.exe)",
+      "Bash(cp TaskNote-V2.png TaskNote-icon.png)",
+      "Bash(cp TaskNote-V2.png tray-icon.png)",
+      "Bash(cp TaskNote-V2.png tmp-256.png)",
+      "Bash(cp build/TaskNote-V2.png public/TaskNote-icon.png)",
+      "Bash(cp build/TaskNote-V2.png public/tray-icon.png)",
+      "Bash(cp build/TaskNote-V2.png build/TaskNote-icon.png)",
+      "Bash(cp build/TaskNote-V2.png build/tray-icon.png)",
+      "Bash(cp build/TaskNote-V2.png build/tmp-256.png)",
+      "Bash(node -e \"const sharp = require\\(''sharp''\\); sharp\\(''build/TaskNote-V2.png''\\).metadata\\(\\).then\\(m => console.log\\(''TaskNote-V2:'', m.width, ''x'', m.height\\)\\)\")",
+      "Bash(npx png-to-ico:*)",
+      "Bash(cp build/icon.ico public/icon.ico)",
+      "Bash(cp build/icon.ico dist/icon.ico)",
+      "Bash(cp build/TaskNote-V2.png dist/tray-icon.png)",
+      "Bash(node -e \"const sharp=require\\(''sharp''\\); sharp\\(''build/TaskNote-V2.png''\\).resize\\(16,16,{fit:''contain'',background:{r:0,g:0,b:0,alpha:0}}\\).png\\(\\).toFile\\(''build/tray-icon.png''\\).then\\(\\(\\)=>console.log\\(''done''\\)\\)\")",
+      "Bash(cp build/tray-icon.png public/tray-icon.png)",
+      "Bash(cp build/tray-icon.png dist/tray-icon.png)",
+      "Bash(node -e \"const sharp=require\\(''sharp''\\); sharp\\(''build/TaskNote-V2.png''\\).resize\\(24,24,{fit:''contain'',background:{r:0,g:0,b:0,alpha:0}}\\).png\\(\\).toFile\\(''build/tray-icon.png''\\).then\\(\\(\\)=>console.log\\(''done''\\)\\)\")",
+      "Bash(npx electron:*)",
+      "Bash(taskkill /f /im electron.exe)",
+      "Bash(npm run:*)",
+      "Bash(ie4uinit.exe -show)",
+      "Bash(dir \"C:\\\\Users\\\\Ryzen 3600\\\\Desktop\\\\TaskNote\\\\release\\\\win-unpacked\\\\.env\")",
+      "Bash(dir \"C:\\\\Users\\\\Ryzen 3600\\\\Desktop\\\\TaskNote\\\\release\\\\win-unpacked\\\\resources\\\\.env\")"
+    ]
+  }
+}

@@ -1,0 +1,231 @@
+import { useState, useRef, useEffect } from "react";
+import { DAYS_KR } from "./constants";
+import useTaskData from "./hooks/useTaskData";
+
+// 컴포넌트
+import ResizeEdges from "./components/ResizeEdges";
+import WinControls from "./components/WinControls";
+import GlobalCSS from "./components/GlobalCSS";
+import MiniToday from "./components/MiniToday";
+import MiniCalendar from "./components/MiniCalendar";
+import Calendar from "./components/Calendar";
+import Sidebar from "./components/Sidebar";
+
+// 모달
+import SettingsModal from "./components/modals/SettingsModal";
+import CalendarEventForm from "./components/modals/CalendarEventForm";
+import { ProjectForm, SubtaskForm, EditTaskForm, TaskTimeForm, RecurringForm, ConvertEventForm } from "./components/modals/FormComponents";
+
+// ── 약관 동의 화면 ──
+function TermsAgreement({ onAgree }) {
+  const [checked, setChecked] = useState(false);
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Noto Sans KR',sans-serif", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}>
+      <div style={{ background: "#fff", borderRadius: 20, padding: "40px 36px", width: 460, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", textAlign: "center" }}>
+        <img src="./TaskNote-icon.png" alt="TaskNote" style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 16 }} />
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: "#1a1a1a", marginBottom: 6 }}>TaskNote에 오신 것을 환영합니다</h1>
+        <p style={{ fontSize: 14, color: "#888", marginBottom: 28 }}>서비스 이용을 위해 약관에 동의해 주세요</p>
+
+        <div style={{ textAlign: "left", marginBottom: 20 }}>
+          <a href="https://synonymous-narwhal-502.notion.site/TaskNote-Privacy-Policy-32ad41d108b580a09560fe28ab5f768d" target="_blank" rel="noopener noreferrer"
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "#f8f9fa", borderRadius: 12, marginBottom: 8, textDecoration: "none", color: "#1a1a1a", fontSize: 14, fontWeight: 600, border: "1px solid #e5e5e5", cursor: "pointer" }}>
+            📄 개인정보처리방침 (Privacy Policy)
+            <span style={{ fontSize: 12, color: "#999" }}>보기 →</span>
+          </a>
+          <a href="https://synonymous-narwhal-502.notion.site/TaskNote-Terms-of-Service-32ad41d108b5800a8678c8e83a13d0cb" target="_blank" rel="noopener noreferrer"
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "#f8f9fa", borderRadius: 12, textDecoration: "none", color: "#1a1a1a", fontSize: 14, fontWeight: 600, border: "1px solid #e5e5e5", cursor: "pointer" }}>
+            📋 서비스 이용약관 (Terms of Service)
+            <span style={{ fontSize: 12, color: "#999" }}>보기 →</span>
+          </a>
+        </div>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: checked ? "#f0f4ff" : "#f8f9fa", border: `1.5px solid ${checked ? "#667eea" : "#e5e5e5"}`, borderRadius: 12, cursor: "pointer", marginBottom: 20, transition: "all .2s" }}>
+          <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)}
+            style={{ width: 18, height: 18, accentColor: "#667eea", cursor: "pointer" }} />
+          <span style={{ fontSize: 14, fontWeight: 600, color: checked ? "#4a5dc7" : "#666" }}>
+            개인정보처리방침 및 서비스 이용약관에 동의합니다
+          </span>
+        </label>
+
+        <button onClick={onAgree} disabled={!checked}
+          style={{ width: "100%", padding: "14px 0", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, color: "#fff", cursor: checked ? "pointer" : "not-allowed", background: checked ? "linear-gradient(135deg, #667eea, #764ba2)" : "#ccc", transition: "all .2s", boxShadow: checked ? "0 4px 16px rgba(102,126,234,0.4)" : "none" }}>
+          시작하기
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function TaskManager() {
+  const ctx = useTaskData();
+  const {
+    loaded, T, data, modal, setModal, themeKey, setThemeKey,
+    isDark, toggleTheme,
+    miniMode, isLocked, sideTab,
+    activeProject, activeProjects,
+    handleLock, handleMiniMode, handleMinimize, handleMaximize, handleClose,
+    addProject, editProject, addSubtask, editSubtask, editSubtaskDesc,
+    addEvent, addEventAsSubtask, updateTaskTime, convertEventToSubtask, fetchGcalEvents,
+    addRecurring, editRecurring, td, calendarRange, setCalendarRange,
+    windowMode, handleWindowMode,
+    agreedTerms, setAgreedTerms,
+  } = ctx;
+
+  const [widgetOpen, setWidgetOpen] = useState(false);
+  const widgetRef = useRef(null);
+  useEffect(() => {
+    if (!widgetOpen) return;
+    const h = (e) => { if (widgetRef.current && !widgetRef.current.contains(e.target)) setWidgetOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [widgetOpen]);
+
+  if (!loaded) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Noto Sans KR',sans-serif", color: "#aaa", fontSize: 18 }}>
+        불러오는 중...
+      </div>
+    );
+  }
+
+  // ── 약관 동의 확인 ──
+  if (!agreedTerms) {
+    return <TermsAgreement onAgree={() => setAgreedTerms(true)} />;
+  }
+
+  // ── 위젯 모드 ──
+  if (miniMode === "today") return <MiniToday ctx={ctx} />;
+  if (miniMode === "calendar") return <MiniCalendar ctx={ctx} />;
+
+  // ── 전체 모드 ──
+  return (
+    <div style={{ fontFamily: "'Noto Sans KR',sans-serif", background: T.bgGrad, height: "100vh", color: T.text, display: "flex", flexDirection: "column", borderRadius: 12, position: "relative", overflow: "hidden", border: `1px solid ${T.border}`, boxSizing: "border-box" }}>
+      <ResizeEdges />
+      <GlobalCSS T={T} />
+
+      {/* 커스텀 타이틀바 + 헤더 */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0 0 10px", background: T.headerBg, backdropFilter: "blur(20px)", borderBottom: `1px solid ${T.border}`, flexShrink: 0, zIndex: 100, WebkitAppRegion: "drag" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "5px 0", WebkitAppRegion: "no-drag" }}>
+          <img src="./TaskNote-icon.png" alt="TaskNote" style={{ width: 38, height: 38, borderRadius: 10, objectFit: "contain" }} />
+          <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>TaskNote</h1>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 4, WebkitAppRegion: "no-drag" }}>
+          <span style={{ fontSize: 14, color: T.textSec, fontWeight: 500, marginRight: 4 }}>{td.getFullYear()}년 {td.getMonth() + 1}월 {td.getDate()}일 ({DAYS_KR[td.getDay()]})</span>
+
+          {/* Google Calendar 동기화 */}
+          <button onClick={() => fetchGcalEvents()} title="Google Calendar 동기화" style={{ width: 34, height: 34, border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textSec, transition: "all .15s", marginRight: 4 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0114.85-3.36L23 10" /><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14" /></svg>
+          </button>
+
+          {/* 다크/라이트 모드 토글 */}
+          <button onClick={toggleTheme} title={isDark ? "라이트 모드" : "다크 모드"} style={{ width: 34, height: 34, border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textSec, transition: "all .15s" }}>
+            {isDark ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            )}
+          </button>
+
+          {/* 설정 */}
+          <button onClick={() => setModal({ type: "settings" })} title="설정" style={{ width: 34, height: 34, border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textSec }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
+          </button>
+          <button onClick={handleLock} title={isLocked ? "잠금 해제" : "위치 잠금"} style={{ width: 34, height: 34, border: `1px solid ${T.border}`, background: isLocked ? T.surfaceBg : T.cardBg, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: isLocked ? T.textSec : T.textMut }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" />{isLocked ? <path d="M7 11V7a5 5 0 0110 0v4" /> : <path d="M7 11V7a5 5 0 019.9-1" />}</svg>
+          </button>
+          <div style={{ width: 1, height: 24, background: T.border, margin: "0 2px" }} />
+          <div ref={widgetRef} style={{ position: "relative" }}>
+            <button onClick={() => setWidgetOpen(!widgetOpen)} style={{ padding: "0 12px", height: 34, border: `1px solid ${widgetOpen ? T.primary : T.border}`, background: widgetOpen ? T.primaryLight : T.cardBg, borderRadius: 8, cursor: "pointer", color: widgetOpen ? T.primary : T.textSec, fontSize: 13, fontWeight: 600, transition: "all .15s", whiteSpace: "nowrap" }}>
+              위젯 모드
+            </button>
+            {widgetOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 10, padding: 6, boxShadow: `0 4px 16px ${T.text}18`, zIndex: 999, minWidth: 160, animation: "fadeIn .15s ease" }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: T.textMut, padding: "4px 10px 6px", margin: 0 }}>위젯 모드</p>
+                <button onClick={() => { handleMiniMode("today"); setWidgetOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "none", background: "transparent", borderRadius: 7, cursor: "pointer", color: T.text, fontSize: 13, fontWeight: 500, transition: "background .1s" }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = T.surfaceBg}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+                  오늘 할 일
+                </button>
+                <button onClick={() => { handleMiniMode("calendar"); setWidgetOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "none", background: "transparent", borderRadius: 7, cursor: "pointer", color: T.text, fontSize: 13, fontWeight: 500, transition: "background .1s" }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = T.surfaceBg}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.primary} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                  캘린더
+                </button>
+              </div>
+            )}
+          </div>
+          <div style={{ width: 1, height: 24, background: T.border, margin: "0 2px" }} />
+          <WinControls T={T} handleMinimize={handleMinimize} handleMaximize={handleMaximize} handleClose={handleClose} />
+        </div>
+      </div>
+
+      {/* MAIN */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <Calendar ctx={ctx} />
+        <Sidebar ctx={ctx} />
+      </div>
+
+      {/* MODAL */}
+      {modal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setModal(null)}>
+          <div style={{ background: T.cardBg, borderRadius: 16, padding: 28, width: 480, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn .2s ease", color: T.text }} onClick={(e) => e.stopPropagation()}>
+
+            {modal.type === "alert" && (
+              <div>
+                <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>⚠️ 알림</h3>
+                <p style={{ fontSize: 15, color: T.text, lineHeight: "24px", whiteSpace: "pre-wrap" }}>{modal.message}</p>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
+                  <button style={{ padding: "10px 28px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600 }} onClick={() => setModal(null)}>확인</button>
+                </div>
+              </div>
+            )}
+
+            {modal.type === "confirm" && (
+              <div>
+                <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>확인</h3>
+                <p style={{ fontSize: 15, color: T.text, lineHeight: "24px", whiteSpace: "pre-wrap" }}>{modal.message}</p>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 24 }}>
+                  <button style={{ padding: "10px 22px", border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 500, color: T.textSec }} onClick={() => setModal(null)}>취소</button>
+                  <button style={{ padding: "10px 22px", border: "none", background: "#ef4444", color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600 }} onClick={modal.onConfirm}>삭제</button>
+                </div>
+              </div>
+            )}
+
+            {modal.type === "settings" && <SettingsModal onClose={() => setModal(null)} T={T} calendarRange={calendarRange} onRangeChange={setCalendarRange} windowMode={windowMode} onWindowModeChange={handleWindowMode} />}
+
+            {modal.type === "addCalendarEvent" && (
+              <CalendarEventForm
+                dateKey={modal.dateKey} dateLabel={modal.dateLabel} projects={activeProjects}
+                onAddIndependent={(name, desc, time) => { addEvent(name, desc, modal.dateKey, time); setModal(null); }}
+                onAddToProject={(projectId, name, desc, time) => { addEventAsSubtask(projectId, name, desc, modal.dateKey, time); setModal(null); }}
+                onCancel={() => setModal(null)} T={T}
+              />
+            )}
+
+            {(modal.type === "addProject" || modal.type === "editProject") && (
+              <ProjectForm initial={modal.project} onSubmit={(n, d, c) => { modal.type === "addProject" ? addProject(n, d, c) : editProject(modal.project.id, n, d, c); setModal(null); }} onCancel={() => setModal(null)} T={T} />
+            )}
+            {modal.type === "addSubtask" && <SubtaskForm parentId={modal.parentId} onSubmit={(n, desc) => { addSubtask(activeProject, n, modal.parentId, desc); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "editTask" && <EditTaskForm currentName={modal.currentName} currentDesc={modal.currentDesc} onSubmit={(name, desc) => { editSubtask(modal.projectId, modal.taskId, name); editSubtaskDesc(modal.projectId, modal.taskId, desc); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "editTaskTime" && <TaskTimeForm taskName={modal.taskName} currentTime={modal.currentTime} onSubmit={(time) => { updateTaskTime(modal.taskId, time); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "addRecurring" && <RecurringForm type={modal.recurType} onSubmit={(n, dv, time, intv, sd) => { addRecurring(n, modal.recurType, dv, time, intv, sd); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "editRecurring" && <RecurringForm type={modal.recurring.type} initial={modal.recurring} onSubmit={(n, dv, time, intv, sd) => { editRecurring(modal.recurring.id, n, dv, time, intv, sd); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+
+            {modal.type === "convertEvent" && (
+              <ConvertEventForm
+                eventName={modal.eventName}
+                projects={activeProjects}
+                onSubmit={(pid) => { convertEventToSubtask(modal.eventId, pid); setModal(null); }}
+                onCancel={() => setModal(null)}
+                T={T}
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

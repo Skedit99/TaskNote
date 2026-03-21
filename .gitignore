@@ -1,0 +1,8 @@
+node_modules/
+dist/
+release/
+.env
+gcal-tokens.json
+*.log
+.DS_Store
+Thumbs.db
