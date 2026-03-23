@@ -17,7 +17,7 @@ export default function Sidebar({ ctx }) {
     addToToday, addToScheduled,
     getColorForProjectId, getScheduledDateForTask, getTaskTime,
     editSubtask, deleteSubtask, reorderSubtasks,
-    addRecurringToToday, toggleRecurring, deleteRecurring,
+    addRecurringToToday, addRecurringToDate, toggleRecurring, deleteRecurring,
     archiveProject, restoreProject, deleteProject, reorderProjects,
     hasNonTodaySelection, selectedDateKey, selectedDateLabel,
   } = ctx;
@@ -50,7 +50,7 @@ export default function Sidebar({ ctx }) {
           {/* TODAY */}
           {sideTab === "today" && (() => {
             const todayStr = new Date().toISOString().slice(0, 10);
-            const todayDone = doneToday.filter((t) => t.completedAt && t.completedAt.slice(0, 10) === todayStr);
+            const todayDone = doneToday;
             return (<>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px 12px", flexShrink: 0 }}>
               <h3 style={{ fontSize: 20, fontWeight: 700 }}>오늘 할 일</h3>
@@ -58,14 +58,8 @@ export default function Sidebar({ ctx }) {
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 20px" }}>
               {pendingToday.length === 0 && todayDone.length === 0 && <p style={{ fontSize: 15, color: T.textMut, textAlign: "center", padding: 30 }}>프로젝트나 정기 업무에서 추가하세요</p>}
-              {data.todayTasks.map((t) => {
-                if (t.completed) return null;
-                let liveDesc = t.description || "";
-                if (t.projectId !== "recurring" && t.projectId !== "event") {
-                  const proj = data.projects.find((p) => p.id === t.projectId);
-                  if (proj) { const st = findTaskById(proj.subtasks, t.taskId); if (st?.description) liveDesc = st.description; }
-                }
-                const hasDesc = liveDesc.trim().length > 0;
+              {pendingToday.map((t) => {
+                const hasDesc = t.description && t.description.trim().length > 0;
                 const isDescExp = expandedToday[t.taskId];
                 const tTime = t.time || getTaskTime(t.taskId);
                 const _pc = getColorForProjectId(t.projectId);
@@ -88,8 +82,8 @@ export default function Sidebar({ ctx }) {
                     {hasDesc && (
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 14px", background: T.surfaceBg, borderRadius: "0 0 12px 12px", border: `1px solid ${T.border}`, borderTop: "none" }}>
                         {isDescExp
-                          ? <p style={{ fontSize: 14, color: T.textSec, lineHeight: "20px", margin: 0, whiteSpace: "pre-wrap", flex: 1, minWidth: 0 }}>{liveDesc}</p>
-                          : <p style={{ fontSize: 14, color: T.textSec, lineHeight: "20px", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{liveDesc}</p>}
+                          ? <p style={{ fontSize: 14, color: T.textSec, lineHeight: "20px", margin: 0, whiteSpace: "pre-wrap", flex: 1, minWidth: 0 }}>{t.description}</p>
+                          : <p style={{ fontSize: 14, color: T.textSec, lineHeight: "20px", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{t.description}</p>}
                         <button style={{ fontSize: 13, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }} onClick={() => setExpandedToday((p) => ({ ...p, [t.taskId]: !p[t.taskId] }))}>{isDescExp ? "간략히" : "더보기"}</button>
                       </div>
                     )}
@@ -280,7 +274,7 @@ export default function Sidebar({ ctx }) {
                           <p style={{ fontSize: 12, color: T.textMut }}>{type === "weekly" ? `${DAYS_KR[r.dayValue]}요일 · ${r.interval === 1 ? "매주" : r.interval === 2 ? "격주" : `${r.interval}주마다`}` : `매월 ${r.dayValue}일`}{r.time ? ` · ${r.time}` : ""}</p>
                         </div>
                         <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
-                          <button style={{ padding: "4px 10px", border: `1.5px solid ${T.primary}`, background: T.cardBg, color: T.primary, borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600 }} onClick={() => addRecurringToToday(r)}>+오늘</button>
+                          {hasNonTodaySelection && <button style={{ padding: "4px 10px", border: `1.5px solid ${T.accent}`, background: T.cardBg, color: T.accent, borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600 }} onClick={() => addRecurringToDate(r, selectedDateKey)}>+{selectedDateLabel}</button>}
                           <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", borderRadius: 7, fontSize: 15, color: T.textMut }} onClick={() => setModal({ type: "editRecurring", recurring: r })}>✎</button>
                           <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", borderRadius: 7, fontSize: 15, color: T.textMut }} onClick={() => toggleRecurring(r.id)}>⏸</button>
                           <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", borderRadius: 7, fontSize: 15, color: "#ef4444" }} onClick={() => deleteRecurring(r.id)}>✕</button>

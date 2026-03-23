@@ -11,6 +11,8 @@ export const defaultData = {
   todayTasks: [],
   completedToday: {},
   recurring: [],
+  recurringSkips: {},
+  recurringAdds: {},
   scheduled: {},
   events: [],
 };

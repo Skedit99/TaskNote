@@ -1,4 +1,4 @@
-import { countAll, countDone, findTaskById, todayKey } from "../utils/helpers";
+import { countAll, countDone, findTaskById, isDescendant, todayKey } from "../utils/helpers";
 
 export default function TaskItem({
   task, depth, projectId, siblings, data, T,
@@ -30,6 +30,8 @@ export default function TaskItem({
           try {
             const d = JSON.parse(e.dataTransfer.getData("text/plain"));
             if (d.taskId === task.id) return;
+            const proj = data.projects.find((x) => x.id === projectId);
+            if (proj && isDescendant(d.taskId, task.id, proj.subtasks)) return;
             const fi = siblings.findIndex((s) => s.id === d.taskId);
             const ti = siblings.findIndex((s) => s.id === task.id);
             if (fi !== -1 && ti !== -1) {
@@ -63,7 +65,7 @@ export default function TaskItem({
             </button>
           ) : (
             <div style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: task.done ? "#10b981" : isScheduled ? T.accent : isInToday ? pc.color : "#d1d5db" }} />
+              <div style={{ width: 10, height: 10, borderRadius: "50%", background: pc.color }} />
             </div>
           )}
           {editingTask === task.id ? (

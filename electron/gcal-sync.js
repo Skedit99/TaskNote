@@ -12,23 +12,32 @@ const { getAuthenticatedClient } = require('./google-auth');
 const MAPPING_FILE = 'gcal-mapping.json';
 const QUEUE_FILE = 'gcal-queue.json';
 
+// ── 매핑 캐시 ──
+let cachedMapping = null;
+
 // ── 매핑 파일 (localId → gcalEventId) ──
 function getMappingPath(app) {
   return path.join(app.getPath('userData'), MAPPING_FILE);
 }
 
 function loadMapping(app) {
+  if (cachedMapping) return cachedMapping;
   try {
     const p = getMappingPath(app);
-    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8'));
+    if (fs.existsSync(p)) {
+      cachedMapping = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return cachedMapping;
+    }
   } catch (e) {
     console.error('매핑 로드 실패:', e.message);
   }
-  return {};
+  cachedMapping = {};
+  return cachedMapping;
 }
 
 function saveMapping(app, mapping) {
   try {
+    cachedMapping = mapping;
     fs.writeFileSync(getMappingPath(app), JSON.stringify(mapping, null, 2), 'utf-8');
   } catch (e) {
     console.error('매핑 저장 실패:', e.message);
@@ -142,18 +151,40 @@ function buildEventResource(summary, description, date, time) {
     resource.end = { date: endDate };
   }
 
+  // TaskNote에서 생성한 이벤트 식별자 (import 시 필터링용)
+  resource.extendedProperties = { private: { tasknote: 'true' } };
+
   return resource;
 }
 
 // ── CREATE ──
 async function createGcalEvent(app, { localId, summary, description, date, time, type }) {
-  // 이미 매핑이 있으면 중복 생성 방지
+  // 이미 매핑이 있으면 중복 생성 방지 (변경 감지 시 update)
   const existingMapping = loadMapping(app);
   if (existingMapping[localId]?.gcalEventId) {
-    console.log(`[GCal] 이미 매핑 존재, 건너뜀: ${localId}`);
-    return { gcalEventId: existingMapping[localId].gcalEventId };
+    const existing = existingMapping[localId];
+
+    // 날짜나 제목 변경 → update 시도
+    if (existing.date !== date || existing.summary !== summary) {
+      console.log(`[GCal] 매핑 존재하지만 변경 감지, 업데이트: ${localId}`);
+      existing.date = date;
+      existing.summary = summary;
+      saveMapping(app, existingMapping);
+
+      const updateResult = await updateGcalEvent(app, { localId, summary, description, date, time });
+      if (updateResult === null) {
+        // update 실패 (404 등) → 매핑 이미 삭제됨 → 아래에서 새로 생성
+        console.log(`[GCal] 업데이트 실패, 재생성 시도: ${localId}`);
+      } else {
+        return { gcalEventId: existing.gcalEventId };
+      }
+    } else {
+      // 변경 없음 → 매핑 신뢰 (완료 상태가 삭제/재생성을 유발하지 않으므로 매핑 안정적)
+      return { gcalEventId: existing.gcalEventId };
+    }
   }
 
+  // 매핑 없음 → 새로 생성
   const client = await getAuthenticatedClient();
   if (!client) return null; // 연결 안 됨 → 무시
 
@@ -173,14 +204,15 @@ async function createGcalEvent(app, { localId, summary, description, date, time,
       lastSynced: new Date().toISOString(),
       type: type || 'event',
       date,
+      summary,
     };
     saveMapping(app, mapping);
 
     console.log(`[GCal] 생성 완료: ${summary} → ${gcalEventId}`);
     return { gcalEventId };
   } catch (err) {
-    if (isNetworkError(err)) {
-      console.warn('[GCal] 네트워크 오류 → 큐에 저장:', summary);
+    if (isNetworkError(err) || isRateLimited(err)) {
+      console.warn('[GCal] 네트워크/Rate Limit 오류 → 큐에 저장:', summary);
       enqueue(app, { action: 'create', localId, payload: { summary, description, date, time, type } });
     } else {
       console.error('[GCal] 생성 실패:', err.message);
@@ -207,6 +239,8 @@ async function updateGcalEvent(app, { localId, summary, description, date, time 
 
   // patch용 리소스: undefined 필드는 전송 안 됨
   const resource = {};
+  // 기존 이벤트에도 TaskNote 식별자 추가 (마이그레이션)
+  resource.extendedProperties = { private: { tasknote: 'true' } };
   if (summary !== undefined) resource.summary = summary;
   if (description !== undefined) resource.description = description;
   if (date !== undefined) {
@@ -236,12 +270,12 @@ async function updateGcalEvent(app, { localId, summary, description, date, time 
     return { gcalEventId: entry.gcalEventId };
   } catch (err) {
     if (err.code === 404 || err.status === 404) {
-      // Google에서 이미 삭제됨 → 매핑 제거
+      // Google에서 이미 삭제됨 → 매핑 제거 (createGcalEvent에서 재생성 처리)
       console.warn('[GCal] 이벤트가 Google에서 삭제됨, 매핑 제거:', localId);
       delete mapping[localId];
       saveMapping(app, mapping);
-    } else if (isNetworkError(err)) {
-      console.warn('[GCal] 네트워크 오류 → 큐에 저장:', localId);
+    } else if (isNetworkError(err) || isRateLimited(err)) {
+      console.warn('[GCal] 네트워크/Rate Limit 오류 → 큐에 저장:', localId);
       enqueue(app, { action: 'update', localId, payload: { summary, description, date, time } });
     } else {
       console.error('[GCal] 수정 실패:', err.message);
@@ -257,14 +291,14 @@ async function deleteGcalEvent(app, { localId }) {
 
   if (!entry?.gcalEventId) {
     console.log('[GCal] 매핑 없음, 삭제 건너뜀:', localId);
-    return null;
+    return { success: true }; // 매핑 없으면 GCal에도 없으므로 성공 취급
   }
 
   const client = await getAuthenticatedClient();
   if (!client) {
-    // 인증 안 됨이지만 매핑은 제거
-    delete mapping[localId];
-    saveMapping(app, mapping);
+    // 인증 안 됨 → 매핑을 유지하고 큐에 저장 (나중에 재시도)
+    console.warn('[GCal] 인증 안 됨 → 큐에 저장:', localId);
+    enqueue(app, { action: 'delete', localId, payload: {} });
     return null;
   }
 
@@ -276,6 +310,7 @@ async function deleteGcalEvent(app, { localId }) {
       eventId: entry.gcalEventId,
     }));
 
+    // GCal에서 성공적으로 삭제된 후에만 매핑 제거
     delete mapping[localId];
     saveMapping(app, mapping);
 
@@ -283,11 +318,13 @@ async function deleteGcalEvent(app, { localId }) {
     return { success: true };
   } catch (err) {
     if (err.code === 404 || err.status === 404) {
-      // 이미 삭제됨
+      // GCal에서 이미 삭제됨 → 매핑 제거 (동기화 확정)
       delete mapping[localId];
       saveMapping(app, mapping);
-    } else if (isNetworkError(err)) {
-      console.warn('[GCal] 네트워크 오류 → 큐에 저장:', localId);
+      return { success: true };
+    } else if (isNetworkError(err) || isRateLimited(err)) {
+      // 매핑 유지한 채 큐에 저장 (fetchGcalEvents에서 재import 방지)
+      console.warn('[GCal] 네트워크/Rate Limit 오류 → 큐에 저장:', localId);
       enqueue(app, { action: 'delete', localId, payload: {} });
     } else {
       console.error('[GCal] 삭제 실패:', err.message);
@@ -399,8 +436,10 @@ async function fetchGcalEvents(app, { timeMin, timeMax }) {
     const importable = [];
 
     for (const ev of gcalEvents) {
-      // 앱에서 push한 이벤트는 건너뜀
+      // 앱에서 push한 이벤트는 건너뜀 (매핑 기반)
       if (pushedGcalIds.has(ev.id)) continue;
+      // TaskNote가 생성한 이벤트는 건너뜀 (식별자 기반 — 매핑 유실 시에도 안전)
+      if (ev.extendedProperties?.private?.tasknote === 'true') continue;
       // 취소된 이벤트 건너뜀
       if (ev.status === 'cancelled') continue;
 
@@ -437,8 +476,8 @@ async function fetchGcalEvents(app, { timeMin, timeMax }) {
   }
 }
 
-// ── 가져온 이벤트의 매핑 저장 (역방향: gcalEventId → localId) ──
-function saveImportMapping(app, localId, gcalEventId, date) {
+// ── 가져온 이벤트의 매핑 저장 + GCal에 TaskNote 식별자 추가 ──
+async function saveImportMapping(app, localId, gcalEventId, date) {
   const mapping = loadMapping(app);
   mapping[localId] = {
     gcalEventId,
@@ -447,6 +486,21 @@ function saveImportMapping(app, localId, gcalEventId, date) {
     date,
   };
   saveMapping(app, mapping);
+
+  // GCal 이벤트에 TaskNote 식별자 추가 (이후 매핑 유실 시에도 재import 방지)
+  try {
+    const client = await getAuthenticatedClient();
+    if (!client) return;
+    const calendar = google.calendar({ version: 'v3', auth: client });
+    await calendar.events.patch({
+      calendarId: 'primary',
+      eventId: gcalEventId,
+      resource: { extendedProperties: { private: { tasknote: 'true' } } },
+    });
+  } catch (e) {
+    // 실패해도 매핑은 이미 저장됨 — 식별자는 보조 수단
+    console.warn('[GCal] import 식별자 추가 실패:', e.message);
+  }
 }
 
 module.exports = {

@@ -100,6 +100,57 @@ export function TaskTimeForm({ taskName, currentTime, onSubmit, onCancel, T }) {
   );
 }
 
+// 요일 강조 커스텀 달력 컴포넌트
+function DayHighlightCalendar({ value, onChange, highlightDow, minDate, T }) {
+  const [viewYear, setViewYear] = useState(() => value ? parseInt(value.split("-")[0]) : new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => value ? parseInt(value.split("-")[1]) - 1 : new Date().getMonth());
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const lastDate = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= lastDate; d++) cells.push(d);
+  const prevM = () => { if (viewMonth === 0) { setViewYear(viewYear - 1); setViewMonth(11); } else setViewMonth(viewMonth - 1); };
+  const nextM = () => { if (viewMonth === 11) { setViewYear(viewYear + 1); setViewMonth(0); } else setViewMonth(viewMonth + 1); };
+  const todayStr = todayKey();
+  const fmt = (d) => `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+  return (
+    <div style={{ background: T.surfaceBg, border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, padding: 10, width: "100%" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <button onClick={prevM} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 14, color: T.textSec, padding: "4px 8px" }}>◀</button>
+        <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{viewYear}년 {viewMonth + 1}월</span>
+        <button onClick={nextM} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 14, color: T.textSec, padding: "4px 8px" }}>▶</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, textAlign: "center" }}>
+        {DAYS_KR.map((d, i) => <div key={d} style={{ fontSize: 11, fontWeight: 600, padding: "4px 0", color: i === 0 ? "#ef4444" : i === 6 ? "#3b82f6" : T.textMut }}>{d}</div>)}
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} />;
+          const dateStr = fmt(day);
+          const dow = new Date(viewYear, viewMonth, day).getDay();
+          const isMatch = highlightDow !== null && dow === highlightDow;
+          const isSel = value === dateStr;
+          const isToday = dateStr === todayStr;
+          const isDisabled = minDate && dateStr < minDate;
+          return (
+            <div key={i} onClick={() => { if (!isDisabled) onChange(dateStr); }}
+              style={{
+                fontSize: 13, padding: "5px 0", borderRadius: 6,
+                cursor: isDisabled ? "not-allowed" : "pointer",
+                fontWeight: isMatch && !isDisabled ? 700 : 400,
+                color: isDisabled ? T.textMut + "44" : isSel ? "white" : isMatch ? (i % 7 === 0 ? "#ef4444" : i % 7 === 6 ? "#3b82f6" : T.text) : T.textMut + "88",
+                background: isSel ? T.primary : isToday && !isDisabled ? T.primaryLight : "transparent",
+                opacity: isDisabled ? 0.5 : 1,
+                transition: "all .1s",
+              }}>
+              {day}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function RecurringForm({ type, initial, onSubmit, onCancel, T }) {
   const [n, sN] = useState(initial?.name || "");
   const [dv, sDv] = useState(initial?.dayValue ?? (type === "weekly" ? 1 : 1));
@@ -109,8 +160,11 @@ export function RecurringForm({ type, initial, onSubmit, onCancel, T }) {
   const [minute, sM] = useState(initT.m);
   const [intv, sI] = useState(initial?.interval || 1);
   const [startDate, setSd] = useState(initial?.startDate || todayKey());
+  const [endDate, setEd] = useState(initial?.endDate || "");
+  const [openCal, setOpenCal] = useState(null); // "start" | "end" | null
   const timeStr = hour !== "" && minute !== "" ? `${hour}:${minute}` : "";
   const inp = { width: "100%", padding: "12px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text };
+  const fmtDisplay = (d) => { if (!d) return ""; const [y, m, dd] = d.split("-"); return `${y}.${m}.${dd}`; };
   return (
     <div>
       <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>{initial ? "정기 업무 편집" : (type === "weekly" ? "주간 업무 추가" : "월간 업무 추가")}</h3>
@@ -124,9 +178,51 @@ export function RecurringForm({ type, initial, onSubmit, onCancel, T }) {
         <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>갱신 주기</label>
         <div style={{ display: "flex", gap: 6, marginTop: 6 }}>{[{ v: 1, l: "매주" }, { v: 2, l: "격주" }, { v: 3, l: "3주" }, { v: 4, l: "4주" }].map((o) => (<button key={o.v} onClick={() => sI(o.v)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 16, fontWeight: 600, background: intv === o.v ? T.primary : T.surfaceBg, color: intv === o.v ? "white" : T.text }}>{o.l}</button>))}</div>
       </>}
-      {type === "weekly" && intv > 1 && <>
-        <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>기준 시작일</label>
-        <input style={inp} type="date" value={startDate} onChange={(e) => setSd(e.target.value)} />
+      {type === "weekly" && <>
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+          {/* 시작일 */}
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: T.textSec, marginBottom: 4 }}>시작일</label>
+            <div onClick={() => setOpenCal(openCal === "start" ? null : "start")}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", border: `1.5px solid ${openCal === "start" ? T.primary : T.inputBorder}`, borderRadius: 8, cursor: "pointer", background: T.surfaceBg, transition: "border-color .15s" }}>
+              <span style={{ fontSize: 14, color: startDate ? T.text : T.textMut }}>{fmtDisplay(startDate) || "선택"}</span>
+              <span style={{ fontSize: 14, color: T.textMut }}>📅</span>
+            </div>
+          </div>
+          {/* 종료일 */}
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: T.textSec, marginBottom: 4 }}>종료일 <span style={{ fontSize: 11, fontWeight: 400, color: T.textMut }}>(선택)</span></label>
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <div onClick={() => setOpenCal(openCal === "end" ? null : "end")}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1, padding: "9px 12px", border: `1.5px solid ${openCal === "end" ? T.primary : T.inputBorder}`, borderRadius: 8, cursor: "pointer", background: T.surfaceBg, transition: "border-color .15s" }}>
+                <span style={{ fontSize: 14, color: endDate ? T.text : T.textMut }}>{fmtDisplay(endDate) || "없음"}</span>
+                <span style={{ fontSize: 14, color: T.textMut }}>📅</span>
+              </div>
+              {endDate && <button onClick={() => { setEd(""); setOpenCal(null); }} style={{ padding: "6px 8px", border: "none", background: "transparent", cursor: "pointer", fontSize: 15, color: T.textMut, flexShrink: 0 }} title="종료일 해제">✕</button>}
+            </div>
+          </div>
+        </div>
+        {/* 확장 달력 */}
+        {openCal && (
+          <div style={{ marginTop: 8 }}>
+            <DayHighlightCalendar
+              value={openCal === "start" ? startDate : endDate}
+              onChange={(d) => {
+                if (openCal === "start") {
+                  setSd(d);
+                  // 시작일이 종료일보다 뒤면 종료일 초기화
+                  if (endDate && d > endDate) setEd("");
+                } else {
+                  setEd(d);
+                }
+                setOpenCal(null);
+              }}
+              highlightDow={dv}
+              minDate={openCal === "end" ? startDate : undefined}
+              T={T}
+            />
+          </div>
+        )}
       </>}
       <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>시간 (선택)</label>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
@@ -137,7 +233,7 @@ export function RecurringForm({ type, initial, onSubmit, onCancel, T }) {
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 24 }}>
         <button style={{ padding: "10px 22px", border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 500, color: T.textSec }} onClick={onCancel}>취소</button>
-        <button style={{ padding: "10px 22px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600 }} onClick={() => n.trim() && onSubmit(n.trim(), dv, timeStr, intv, startDate)} disabled={!n.trim()}>{initial ? "저장" : "추가"}</button>
+        <button style={{ padding: "10px 22px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600 }} onClick={() => n.trim() && onSubmit(n.trim(), dv, timeStr, intv, startDate, endDate)} disabled={!n.trim()}>{initial ? "저장" : "추가"}</button>
       </div>
     </div>
   );

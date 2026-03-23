@@ -1,7 +1,6 @@
 import { DAYS_KR } from "../constants";
 
-export const generateId = () =>
-  Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+export const generateId = () => crypto.randomUUID();
 
 export const fmtDate = (d) => {
   if (!d) return "";
@@ -71,6 +70,19 @@ export const removeTaskById = (st, id) => {
     if (st[i].children && removeTaskById(st[i].children, id)) return true;
   }
   return false;
+};
+
+export const isDescendant = (draggedId, targetId, tree) => {
+  const node = findTaskById(tree, draggedId);
+  if (!node || !node.children) return false;
+  const check = (children) => {
+    for (const c of children) {
+      if (c.id === targetId) return true;
+      if (c.children && check(c.children)) return true;
+    }
+    return false;
+  };
+  return check(node.children);
 };
 
 export const weeksBetween = (d1, d2) => {

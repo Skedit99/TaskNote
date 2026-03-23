@@ -101,7 +101,7 @@ export default function MiniToday({ ctx }) {
   const aTextSec = adaptiveColor(T.textSec, bgOpacity, isDark);
   const aBorder = adaptiveColor(T.border, bgOpacity, isDark);
   const todayStr = new Date().toISOString().slice(0, 10);
-  const todayDone = doneToday.filter((t) => t.completedAt && t.completedAt.slice(0, 10) === todayStr);
+  const todayDone = doneToday;
   const todayTotal = pendingToday.length + todayDone.length;
 
   return (
@@ -169,12 +169,7 @@ export default function MiniToday({ ctx }) {
             </div>
           )}
           {pendingToday.map((t) => {
-            let liveDesc = t.description || "";
-            if (t.projectId !== "recurring" && t.projectId !== "event") {
-              const proj = data.projects.find((p) => p.id === t.projectId);
-              if (proj) { const st = findTaskById(proj.subtasks, t.taskId); if (st?.description) liveDesc = st.description; }
-            }
-            const hasDesc = liveDesc.trim().length > 0;
+            const hasDesc = t.description && t.description.trim().length > 0;
             const isDescExp = expandedToday[t.taskId];
             const tTime = t.time || getTaskTime(t.taskId);
             const _pc = getColorForProjectId(t.projectId);
@@ -195,7 +190,7 @@ export default function MiniToday({ ctx }) {
                   </div>
                 </div>
                 {hasDesc && (
-                  <DescPanel desc={liveDesc} expanded={!!isDescExp} onToggle={() => setExpandedToday((p) => ({ ...p, [t.taskId]: !p[t.taskId] }))} T={T} />
+                  <DescPanel desc={t.description} expanded={!!isDescExp} onToggle={() => setExpandedToday((p) => ({ ...p, [t.taskId]: !p[t.taskId] }))} T={T} />
                 )}
               </div>
             );

@@ -20,20 +20,29 @@ const WINDOW_MODES = [
   { value: "widget", label: "항상 아래", desc: "위젯 모드에서 다른 창 아래에 배치 (바탕화면 위젯)" },
 ];
 
-export default function SettingsModal({ onClose, T, calendarRange, onRangeChange, windowMode, onWindowModeChange }) {
+export default function SettingsModal({ onClose, T, calendarRange, onRangeChange, windowMode, onWindowModeChange, onDataReload }) {
   const [tab, setTab] = useState("settings");
   const [autoLaunch, setAutoLaunch] = useState(false);
   const [autoLaunchLoaded, setAutoLaunchLoaded] = useState(false);
   const [localRange, setLocalRange] = useState(calendarRange || 0);
   const [localWindowMode, setLocalWindowMode] = useState(windowMode || "normal");
 
+  const [appVersion, setAppVersion] = useState("...");
   const [gcalStatus, setGcalStatus] = useState(null);
   const [gcalLoading, setGcalLoading] = useState(false);
   const [gcalError, setGcalError] = useState("");
+  const [dataPath, setDataPath] = useState("");
+  const [isCustomPath, setIsCustomPath] = useState(false);
 
   useEffect(() => {
     if (isElectron) {
       window.electronAPI.getAutoLaunch().then((v) => { setAutoLaunch(v); setAutoLaunchLoaded(true); });
+      if (window.electronAPI.getAppVersion) {
+        window.electronAPI.getAppVersion().then((v) => setAppVersion(v));
+      }
+      if (window.electronAPI.getDataPath) {
+        window.electronAPI.getDataPath().then((r) => { setDataPath(r.path); setIsCustomPath(r.isCustom); });
+      }
     } else { setAutoLaunchLoaded(true); }
   }, []);
 
@@ -73,6 +82,7 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
     { key: "settings", label: "설정", icon: "⚙️" },
     { key: "calendar", label: "캘린더", icon: "📆" },
     { key: "google", label: "Google 캘린더", icon: "📅" },
+    { key: "storage", label: "저장소", icon: "💾" },
     { key: "about", label: "정보", icon: "📄" },
   ];
 
@@ -210,12 +220,89 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
         </div>
       )}
 
+      {tab === "storage" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ padding: "20px", background: T.surfaceBg, borderRadius: 12, border: `1px solid ${T.border}` }}>
+            <p style={{ fontSize: 16, fontWeight: 600, margin: "0 0 4px" }}>데이터 저장 위치</p>
+            <p style={{ fontSize: 13, color: T.textMut, margin: "0 0 16px" }}>클라우드 폴더(OneDrive, Google Drive 등)를 선택하면 여러 PC에서 데이터를 동기화할 수 있습니다</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: T.cardBg, borderRadius: 10, border: `1px solid ${T.border}`, marginBottom: 12 }}>
+              <span style={{ fontSize: 13, color: T.textMut, flexShrink: 0 }}>📂</span>
+              <span style={{ fontSize: 13, color: T.textSec, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dataPath || "로딩 중..."}</span>
+              {isCustomPath && <span style={{ fontSize: 11, padding: "2px 8px", background: T.primaryLight, color: T.primary, borderRadius: 6, fontWeight: 600, flexShrink: 0 }}>커스텀</span>}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={async () => {
+                const folder = await window.electronAPI.selectDataFolder();
+                if (!folder) return;
+                const result = await window.electronAPI.setDataPath(folder);
+                if (result?.success) {
+                  setDataPath(result.path);
+                  setIsCustomPath(true);
+                  if (result.data && onDataReload) onDataReload(result.data);
+                } else {
+                  alert("경로 변경 실패: " + (result?.error || "알 수 없는 오류"));
+                }
+              }} style={{ flex: 1, padding: "10px", border: `1px solid ${T.primary}`, background: "transparent", color: T.primary, borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "all .15s" }}>
+                폴더 변경
+              </button>
+              {isCustomPath && (
+                <button onClick={async () => {
+                  const result = await window.electronAPI.resetDataPath();
+                  if (result?.success) {
+                    setDataPath(result.path);
+                    setIsCustomPath(false);
+                    if (result.data && onDataReload) onDataReload(result.data);
+                  }
+                }} style={{ padding: "10px 16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textSec, borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "all .15s" }}>
+                  기본으로 복원
+                </button>
+              )}
+            </div>
+          </div>
+          <div style={{ padding: "16px", background: T.surfaceBg, borderRadius: 10, border: `1px solid ${T.border}` }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: T.textSec, margin: "0 0 8px" }}>사용 방법</p>
+            <div style={{ fontSize: 13, color: T.textMut, lineHeight: "20px" }}>
+              <p style={{ margin: "0 0 4px" }}>1. 클라우드 동기화 앱(OneDrive, Google Drive 등)이 설치된 폴더를 선택하세요</p>
+              <p style={{ margin: "0 0 4px" }}>2. 다른 PC에서도 같은 클라우드 폴더를 선택하면 데이터가 동기화됩니다</p>
+              <p style={{ margin: "0 0 4px" }}>3. 변경 후 앱을 재시작해야 적용됩니다</p>
+            </div>
+          </div>
+          <div style={{ padding: "10px 14px", background: T.cardBg, borderRadius: 8, border: `1px solid ${T.border}` }}>
+            <p style={{ fontSize: 12, color: T.textMut, margin: 0, lineHeight: "18px" }}>
+              ⚠️ 두 PC에서 동시에 앱을 열고 수정하면 데이터가 충돌할 수 있습니다. 한쪽에서 종료 후 사용하세요.
+            </p>
+          </div>
+          {!isElectron && <p style={{ fontSize: 13, color: T.warnText, marginTop: 0, padding: "8px 12px", background: T.warnBg, borderRadius: 8 }}>이 기능은 데스크탑 앱에서만 사용할 수 있습니다</p>}
+        </div>
+      )}
+
       {tab === "about" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ padding: "24px", background: T.surfaceBg, borderRadius: 12, border: `1px solid ${T.border}`, textAlign: "center" }}>
             <p style={{ fontSize: 20, fontWeight: 800, margin: "0 0 4px", color: T.text }}>TaskNote</p>
-            <p style={{ fontSize: 13, color: T.textMut, margin: 0 }}>버전 1.0.0</p>
+            <p style={{ fontSize: 13, color: T.textMut, margin: 0 }}>버전 {appVersion}</p>
             <p style={{ fontSize: 13, color: T.textMut, margin: "4px 0 0" }}>개발자: Skedit99</p>
+          </div>
+          <div style={{ padding: "20px", background: T.surfaceBg, borderRadius: 12, border: `1px solid ${T.border}` }}>
+            <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 12px", color: T.text }}>소프트웨어 업데이트</p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <p style={{ fontSize: 13, color: T.textSec, margin: 0 }}>현재 버전: {appVersion}</p>
+                <p style={{ fontSize: 12, color: T.textMut, margin: "2px 0 0" }}>최신 버전을 확인하고 업데이트를 설치합니다</p>
+              </div>
+              <button onClick={async () => {
+                if (!isElectron) return;
+                const result = await window.electronAPI.checkForUpdate();
+                if (result?.updateAvailable) {
+                  alert("새로운 업데이트가 발견되었습니다. 다운로드를 시작합니다.");
+                  window.electronAPI.downloadUpdate();
+                } else {
+                  alert("현재 최신 버전을 사용 중입니다.");
+                }
+              }} style={{ padding: "8px 16px", border: `1px solid ${T.primary}`, background: "transparent", color: T.primary, borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                업데이트 확인
+              </button>
+            </div>
           </div>
           <div style={{ padding: "20px", background: T.surfaceBg, borderRadius: 12, border: `1px solid ${T.border}` }}>
             <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 12px", color: T.text }}>법적 고지</p>

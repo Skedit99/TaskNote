@@ -35,6 +35,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateProgress: (cb) => ipcRenderer.on('update-download-progress', (_e, pct) => cb(pct)),
   onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', () => cb()),
 
+  // ── 데이터 저장 경로 ──
+  getDataPath: () => ipcRenderer.invoke('get-data-path'),
+  selectDataFolder: () => ipcRenderer.invoke('select-data-folder'),
+  setDataPath: (path) => ipcRenderer.invoke('set-data-path', path),
+  resetDataPath: () => ipcRenderer.invoke('reset-data-path'),
+
+  // ── 외부 변경 감지 (클라우드 동기화) ──
+  onExternalDataChanged: (cb) => ipcRenderer.on('external-data-changed', (_e, data) => cb(data)),
+  onDataConflict: (cb) => ipcRenderer.on('data-conflict', (_e, diskData) => cb(diskData)),
+
+  // ── 종료 전 저장 핸드셰이크 ──
+  onRequestSaveBeforeClose: (cb) => ipcRenderer.on('request-save-before-close', () => cb()),
+  sendSaveComplete: () => ipcRenderer.send('save-complete'),
+
   // ── Google Calendar 동기화 ──
   gcalSyncCreate: (payload) => ipcRenderer.invoke('gcal-sync-create', payload),
   gcalSyncUpdate: (payload) => ipcRenderer.invoke('gcal-sync-update', payload),

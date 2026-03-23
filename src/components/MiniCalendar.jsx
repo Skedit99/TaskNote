@@ -169,10 +169,10 @@ export default function MiniCalendar({ ctx }) {
               const dayEvents = getEventsForDay(day, year, month).filter((e) => !dayCompIds.has(e.id) && !dayTodayIds.has(e.id));
 
               const pending = [
-                ...dayEvents.map((e) => ({ id: e.id, name: e.name, sub: "독립 일정", isEvent: true, item: { projectId: "event", taskId: e.id, projectName: "독립 일정", taskName: e.name } })),
-                ...dayToday.map((t) => ({ id: t.taskId, name: t.taskName, sub: t.projectName, item: { projectId: t.projectId, taskId: t.taskId, projectName: t.projectName, taskName: t.taskName } })),
-                ...daySched.map((s) => ({ id: s.taskId, name: s.taskName, sub: s.projectName, item: { projectId: s.projectId, taskId: s.taskId, projectName: s.projectName, taskName: s.taskName } })),
-                ...dayRecur.map((r) => ({ id: r.id, name: r.name, sub: r.type === "weekly" ? "주간" : "월간", item: { projectId: "recurring", taskId: r.id, projectName: r.type === "weekly" ? "주간" : "월간", taskName: r.name } })),
+                ...dayEvents.map((e) => ({ id: e.id, name: e.name, sub: "독립 일정", isEvent: true, item: { projectId: "event", taskId: e.id } })),
+                ...dayToday.map((t) => ({ id: t.taskId, name: t.taskName, sub: t.projectName, item: { projectId: t.projectId, taskId: t.taskId } })),
+                ...daySched.map((s) => ({ id: s.taskId, name: s.taskName, sub: s.projectName, item: { projectId: s.projectId, taskId: s.taskId } })),
+                ...dayRecur.map((r) => ({ id: r.id, name: r.name, sub: r.type === "weekly" ? "주간" : "월간", item: { projectId: "recurring", taskId: r.id } })),
               ];
 
               // 날짜 범위 모드의 지난 날만 완료 항목 숨기기

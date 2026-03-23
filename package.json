@@ -56,9 +56,11 @@
     }
   },
   "dependencies": {
+    "chokidar": "^5.0.0",
     "dotenv": "^17.3.1",
     "electron-updater": "^6.8.3",
     "googleapis": "^171.4.0",
+    "immer": "^11.1.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

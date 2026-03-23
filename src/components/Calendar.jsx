@@ -8,7 +8,7 @@ export default function Calendar({ ctx }) {
     getEventsForDay, deleteEvent, convertEventToSubtask,
     activeProjects, setModal,
     getColorForProjectId, completeForDate, uncompleteForDate,
-    removeFromToday, deleteScheduled, handleCalendarDoubleClick,
+    removeFromToday, deleteScheduled, skipRecurringForDate, handleCalendarDoubleClick,
     calendarRange,
   } = ctx;
 
@@ -63,7 +63,7 @@ export default function Calendar({ ctx }) {
                 setModal({ type: "convertEvent", eventId: ev.id, eventName: ev.name, eventDate: ev.date });
               }}
               style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: T.accent + "15", border: `1px solid ${T.accent}33`, borderLeft: `4px solid ${T.accent}`, marginBottom: 6, cursor: "pointer", transition: "background .15s" }}>
-              <CheckBox done={false} onClick={(e) => { e.stopPropagation(); completeForDate(dateKey, { projectId: "event", taskId: ev.id, projectName: "독립 일정", taskName: ev.name }); }} />
+              <CheckBox done={false} onClick={(e) => { e.stopPropagation(); completeForDate(dateKey, { projectId: "event", taskId: ev.id }); }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 15, fontWeight: 600 }}>{ev.name}</p>
                 {ev.description && <p style={{ fontSize: 13, color: T.textMut, marginTop: 2 }}>{ev.description}</p>}
@@ -77,7 +77,7 @@ export default function Calendar({ ctx }) {
         {dayToday.length > 0 && <div style={{ marginBottom: 14 }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: T.warnText, marginBottom: 8 }}>● 오늘 할 일</p>
           {dayToday.map((t, i) => { const pc = getColorForProjectId(t.projectId); return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: pc.light + "66", border: `1px solid ${pc.color}33`, borderLeft: `4px solid ${pc.color}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: t.projectId, taskId: t.taskId, projectName: t.projectName, taskName: t.taskName })}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: pc.light + "66", border: `1px solid ${pc.color}33`, borderLeft: `4px solid ${pc.color}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: t.projectId, taskId: t.taskId })}>
               <CheckBox done={false} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{t.taskName}</p><p style={{ fontSize: 13, color: T.textMut }}>{t.projectName}</p></div>
               <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", fontSize: 15, color: T.textMut }} onClick={(e) => { e.stopPropagation(); removeFromToday(t.taskId); }}>✕</button>
             </div>); })}
@@ -86,7 +86,7 @@ export default function Calendar({ ctx }) {
         {daySched.length > 0 && <div style={{ marginBottom: 14 }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: T.accent, marginBottom: 8 }}>◇ 예약된 업무</p>
           {daySched.map((s, i) => { const pc = getColorForProjectId(s.projectId); return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: pc.light + "66", border: `1px solid ${pc.color}33`, borderLeft: `4px solid ${pc.color}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: s.projectId, taskId: s.taskId, projectName: s.projectName, taskName: s.taskName })}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: pc.light + "66", border: `1px solid ${pc.color}33`, borderLeft: `4px solid ${pc.color}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: s.projectId, taskId: s.taskId })}>
               <CheckBox done={false} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{s.taskName}</p><p style={{ fontSize: 13, color: T.textMut }}>{s.projectName}</p></div>
               <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", fontSize: 15, color: T.textMut }} onClick={(e) => { e.stopPropagation(); deleteScheduled(dateKey, s.taskId); }}>✕</button>
             </div>); })}
@@ -95,8 +95,9 @@ export default function Calendar({ ctx }) {
         {dayRecur.length > 0 && <div style={{ marginBottom: 14 }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: T.primary, marginBottom: 8 }}>↻ 정기 업무</p>
           {dayRecur.map((r, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: T.primaryLight + "66", border: `1px solid ${T.primaryLight}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: "recurring", taskId: r.id, projectName: r.type === "weekly" ? "주간" : "월간", taskName: r.name })}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: T.primaryLight + "66", border: `1px solid ${T.primaryLight}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: "recurring", taskId: r.id })}>
               <CheckBox done={false} /><div style={{ flex: 1 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{r.name}</p><p style={{ fontSize: 13, color: T.textMut }}>{r.time || ""} {r.type === "weekly" ? (r.interval === 1 ? "매주" : r.interval === 2 ? "격주" : `${r.interval}주`) : `매월 ${r.dayValue}일`}</p></div>
+              <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", fontSize: 15, color: T.textMut }} onClick={(e) => { e.stopPropagation(); skipRecurringForDate(dateKey, r.id); }}>✕</button>
             </div>
           ))}
         </div>}
@@ -136,12 +137,13 @@ export default function Calendar({ ctx }) {
           const compIds = new Set(comp.map((c) => c.taskId));
           const filteredSched = sched.filter((s) => !todayIds.has(s.taskId) && !compIds.has(s.taskId));
           const filteredEvents = events.filter((e) => !todayIds.has(e.id) && !compIds.has(e.id));
+          const filteredRecur = recur.filter((r) => !compIds.has(r.id));
           const allItems = [
             ...filteredEvents.map((e) => ({ type: "event", name: e.name, pid: "event" })),
             ...todayTasks.map((t) => ({ type: "today", name: t.taskName, pid: t.projectId })),
             ...filteredSched.map((s) => ({ type: "sched", name: s.taskName, pid: s.projectId })),
             ...comp.map((c) => ({ type: "done", name: c.taskName, pid: c.projectId })),
-            ...recur.map((r) => ({ type: "recur", name: r.name, pid: "recurring" })),
+            ...filteredRecur.map((r) => ({ type: "recur", name: r.name, pid: "recurring" })),
           ];
           return (
             <div key={i} onClick={() => day && setSelectedDay(day === selectedDay ? null : day)}

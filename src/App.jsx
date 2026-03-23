@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { DAYS_KR } from "./constants";
 import useTaskData from "./hooks/useTaskData";
+import gcal from "./hooks/gcalHelper";
 
 // 컴포넌트
 import ResizeEdges from "./components/ResizeEdges";
@@ -71,6 +72,18 @@ export default function TaskManager() {
     agreedTerms, setAgreedTerms,
   } = ctx;
 
+  // ── GCal 동기화 버튼 쿨타임 (15초) ──
+  const [syncCooldown, setSyncCooldown] = useState(false);
+  const handleSyncClick = useCallback(() => {
+    if (syncCooldown) return;
+    setSyncCooldown(true);
+    // Push 먼저 (매핑 완성) → Pull (중복 import 방지)
+    gcal.syncExisting(data);
+    gcal.flushOfflineQueue();
+    fetchGcalEvents();  // waitForInitialSync()로 syncExisting 완료 후 실행
+    setTimeout(() => setSyncCooldown(false), 15000);
+  }, [syncCooldown, fetchGcalEvents, data]);
+
   const [widgetOpen, setWidgetOpen] = useState(false);
   const widgetRef = useRef(null);
   useEffect(() => {
@@ -113,8 +126,8 @@ export default function TaskManager() {
         <div style={{ display: "flex", alignItems: "center", gap: 4, WebkitAppRegion: "no-drag" }}>
           <span style={{ fontSize: 14, color: T.textSec, fontWeight: 500, marginRight: 4 }}>{td.getFullYear()}년 {td.getMonth() + 1}월 {td.getDate()}일 ({DAYS_KR[td.getDay()]})</span>
 
-          {/* Google Calendar 동기화 */}
-          <button onClick={() => fetchGcalEvents()} title="Google Calendar 동기화" style={{ width: 34, height: 34, border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textSec, transition: "all .15s", marginRight: 4 }}>
+          {/* Google Calendar 동기화 (15초 쿨타임) */}
+          <button onClick={handleSyncClick} disabled={syncCooldown} title={syncCooldown ? "동기화 대기 중..." : "Google Calendar 동기화"} style={{ width: 34, height: 34, border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 8, cursor: syncCooldown ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textSec, transition: "all .3s", marginRight: 4, opacity: syncCooldown ? 0.35 : 1, pointerEvents: syncCooldown ? "none" : "auto" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0114.85-3.36L23 10" /><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14" /></svg>
           </button>
 
@@ -171,7 +184,7 @@ export default function TaskManager() {
       {/* MODAL */}
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setModal(null)}>
-          <div style={{ background: T.cardBg, borderRadius: 16, padding: 28, width: 480, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn .2s ease", color: T.text }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ background: T.cardBg, borderRadius: 16, padding: 28, width: modal.type === "settings" ? 580 : 480, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn .2s ease", color: T.text }} onClick={(e) => e.stopPropagation()}>
 
             {modal.type === "alert" && (
               <div>
@@ -194,7 +207,7 @@ export default function TaskManager() {
               </div>
             )}
 
-            {modal.type === "settings" && <SettingsModal onClose={() => setModal(null)} T={T} calendarRange={calendarRange} onRangeChange={setCalendarRange} windowMode={windowMode} onWindowModeChange={handleWindowMode} />}
+            {modal.type === "settings" && <SettingsModal onClose={() => setModal(null)} T={T} calendarRange={calendarRange} onRangeChange={setCalendarRange} windowMode={windowMode} onWindowModeChange={handleWindowMode} onDataReload={(newData) => { if (newData) ctx.setData(newData); }} />}
 
             {modal.type === "addCalendarEvent" && (
               <CalendarEventForm
@@ -211,8 +224,8 @@ export default function TaskManager() {
             {modal.type === "addSubtask" && <SubtaskForm parentId={modal.parentId} onSubmit={(n, desc) => { addSubtask(activeProject, n, modal.parentId, desc); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
             {modal.type === "editTask" && <EditTaskForm currentName={modal.currentName} currentDesc={modal.currentDesc} onSubmit={(name, desc) => { editSubtask(modal.projectId, modal.taskId, name); editSubtaskDesc(modal.projectId, modal.taskId, desc); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
             {modal.type === "editTaskTime" && <TaskTimeForm taskName={modal.taskName} currentTime={modal.currentTime} onSubmit={(time) => { updateTaskTime(modal.taskId, time); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
-            {modal.type === "addRecurring" && <RecurringForm type={modal.recurType} onSubmit={(n, dv, time, intv, sd) => { addRecurring(n, modal.recurType, dv, time, intv, sd); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
-            {modal.type === "editRecurring" && <RecurringForm type={modal.recurring.type} initial={modal.recurring} onSubmit={(n, dv, time, intv, sd) => { editRecurring(modal.recurring.id, n, dv, time, intv, sd); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "addRecurring" && <RecurringForm type={modal.recurType} onSubmit={(n, dv, time, intv, sd, ed) => { addRecurring(n, modal.recurType, dv, time, intv, sd, ed); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "editRecurring" && <RecurringForm type={modal.recurring.type} initial={modal.recurring} onSubmit={(n, dv, time, intv, sd, ed) => { editRecurring(modal.recurring.id, n, dv, time, intv, sd, ed); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
 
             {modal.type === "convertEvent" && (
               <ConvertEventForm
