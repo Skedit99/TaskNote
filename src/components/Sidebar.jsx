@@ -36,7 +36,7 @@ export default function Sidebar({ ctx }) {
           { key: "recurring", label: "정기 업무", icon: "↻", color: T.doneText },
         ].map((tab) => (
           <button key={tab.key} onClick={() => setSideTab(sideTab === tab.key ? null : tab.key)}
-            style={{ width: 56, minHeight: 80, border: "none", background: sideTab === tab.key ? tab.color : T.surfaceBg, borderRadius: 10, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, transition: "all .15s", boxShadow: sideTab === tab.key ? `0 3px 12px ${tab.color}44` : "none" }}>
+            style={{ width: 56, minHeight: 80, border: "none", background: sideTab === tab.key ? tab.color : T.surfaceBg, borderRadius: 10, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, transition: "box-shadow .15s", boxShadow: sideTab === tab.key ? `0 3px 12px ${tab.color}44` : "none" }}>
             <span style={{ fontSize: 20, color: sideTab === tab.key ? "white" : tab.color }}>{tab.icon}</span>
             <span style={{ fontSize: 11, fontWeight: 700, lineHeight: "13px", textAlign: "center", color: sideTab === tab.key ? "white" : T.text }}>{tab.label}</span>
           </button>
@@ -65,10 +65,10 @@ export default function Sidebar({ ctx }) {
                 const _pc = getColorForProjectId(t.projectId);
                 return (
                   <div key={t.taskId} style={{ marginBottom: 4 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 14px", background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: hasDesc ? "12px 12px 0 0" : "12px", position: "relative", overflow: "hidden" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 14px", background: _pc.light + "44", border: `1px solid ${_pc.color}33`, borderRadius: hasDesc ? "12px 12px 0 0" : "12px", position: "relative", overflow: "hidden" }}>
                       <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, borderRadius: "3px 0 0 3px", background: `linear-gradient(to bottom, transparent, ${_pc.color} 20%, ${_pc.color} 80%, transparent)` }} />
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, cursor: "pointer", minWidth: 0 }} onClick={() => toggleTodayTask(t.taskId)}>
-                        <div style={{ width: 24, height: 24, borderRadius: 8, border: `2.5px solid ${T.border}`, flexShrink: 0 }} />
+                        <div style={{ width: 24, height: 24, borderRadius: 8, border: `2.5px solid ${_pc.color}`, flexShrink: 0 }} />
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <p style={{ fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.taskName}</p>
                           <p style={{ fontSize: 13, color: T.textMut }}>{t.projectName}</p>
@@ -170,7 +170,7 @@ export default function Sidebar({ ctx }) {
                     onDragEnd={() => { dragProjectRef.current = null; setDragOverId(null); }}
                   >
                     <div style={{ height: isDragOver ? 3 : 0, borderRadius: 3, background: `linear-gradient(90deg,${T.primary},${T.accent})`, marginBottom: isDragOver ? 4 : 0, transition: "height .12s, margin .12s", overflow: "hidden" }} />
-                    <div style={{ padding: "14px 16px", borderRadius: 12, border: `2px solid ${isActive ? pc.color : T.border}`, borderLeft: `4px solid ${pc.color}`, background: isActive ? pc.light + "44" : T.cardBg, cursor: isActive ? "pointer" : "grab", transition: "all .15s", boxShadow: isActive ? `0 2px 10px ${pc.color}18` : "" }} onClick={() => setActiveProject(isActive ? null : p.id)}>
+                    <div style={{ padding: "14px 16px", borderRadius: 12, border: `2px solid ${isActive ? pc.color : T.border}`, borderLeft: `4px solid ${pc.color}`, background: isActive ? pc.light + "44" : T.cardBg, cursor: isActive ? "pointer" : "grab", transition: "box-shadow .15s", boxShadow: isActive ? `0 2px 10px ${pc.color}18` : "" }} onClick={() => setActiveProject(isActive ? null : p.id)}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <div style={{ width: 12, height: 12, borderRadius: 4, background: pc.color, flexShrink: 0 }} />

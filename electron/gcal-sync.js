@@ -121,7 +121,7 @@ async function withRetry(fn, { maxRetries = 3, baseDelay = 1000 } = {}) {
 }
 
 // ── Google Calendar 이벤트 리소스 빌드 ──
-function buildEventResource(summary, description, date, time) {
+function buildEventResource(summary, description, date, time, endTime) {
   const resource = {
     summary: summary || '(제목 없음)',
     description: description || '',
@@ -130,13 +130,16 @@ function buildEventResource(summary, description, date, time) {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul';
 
   if (time) {
-    // 시간 지정 이벤트 → dateTime (1시간 duration)
     const startDT = `${date}T${time}:00`;
-    const startDate = new Date(startDT);
-    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1시간
-
-    const pad = (n) => String(n).padStart(2, '0');
-    const endStr = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}T${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:00`;
+    let endStr;
+    if (endTime) {
+      endStr = `${date}T${endTime}:00`;
+    } else {
+      const startDate = new Date(startDT);
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1시간
+      const pad = (n) => String(n).padStart(2, '0');
+      endStr = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}T${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:00`;
+    }
 
     resource.start = { dateTime: startDT, timeZone: tz };
     resource.end = { dateTime: endStr, timeZone: tz };
@@ -158,7 +161,7 @@ function buildEventResource(summary, description, date, time) {
 }
 
 // ── CREATE ──
-async function createGcalEvent(app, { localId, summary, description, date, time, type }) {
+async function createGcalEvent(app, { localId, summary, description, date, time, endTime, type }) {
   // 이미 매핑이 있으면 중복 생성 방지 (변경 감지 시 update)
   const existingMapping = loadMapping(app);
   if (existingMapping[localId]?.gcalEventId) {
@@ -189,7 +192,7 @@ async function createGcalEvent(app, { localId, summary, description, date, time,
   if (!client) return null; // 연결 안 됨 → 무시
 
   const calendar = google.calendar({ version: 'v3', auth: client });
-  const resource = buildEventResource(summary, description, date, time);
+  const resource = buildEventResource(summary, description, date, time, endTime);
 
   try {
     const res = await withRetry(() => calendar.events.insert({

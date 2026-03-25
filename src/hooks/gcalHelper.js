@@ -287,8 +287,9 @@ const gcal = {
         cursor.setDate(1);
         while (cursor <= limit) {
           const lastDay = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
-          if (r.dayValue <= lastDay) {
-            const d = new Date(cursor.getFullYear(), cursor.getMonth(), r.dayValue);
+          const targetDay = r.dayValue === -1 ? lastDay : r.dayValue;
+          if (targetDay <= lastDay) {
+            const d = new Date(cursor.getFullYear(), cursor.getMonth(), targetDay);
             if (d >= today && d <= limit) {
               const dateKey = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
               regularDates.add(dateKey);

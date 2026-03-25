@@ -57,7 +57,7 @@ export default function useTaskData() {
   const {
     activeProjects, archivedProjects,
     addProject, editProject, deleteProject, archiveProject, restoreProject, reorderProjects,
-    addSubtask, editSubtask, editSubtaskDesc, deleteSubtask, reorderSubtasks,
+    addSubtask, editSubtask, editSubtaskDesc, editSubtaskTime, deleteSubtask, reorderSubtasks,
   } = createProjectActions({ data, updateData, setModal, activeProject, setActiveProject, setExpanded, gcal });
 
   const getProjectById = (pid) => data.projects.find((p) => p.id === pid && !p.deleted);
@@ -107,16 +107,16 @@ export default function useTaskData() {
   });
 
   // ── 독립 이벤트 ──
-  const addEvent = (name, desc, dateKey, time) => {
+  const addEvent = (name, desc, dateKey, time, endTime) => {
     const evId = generateId();
     updateData((d) => {
       if (!d.events) d.events = [];
-      d.events.push({ id: evId, name, description: desc || "", date: dateKey, time: time || "", updatedAt: Date.now() });
+      d.events.push({ id: evId, name, description: desc || "", date: dateKey, time: time || "", endTime: endTime || "", updatedAt: Date.now() });
       if (dateKey === todayKey()) {
         d.todayTasks.push({ projectId: "event", taskId: evId, completed: false, time: time || "", updatedAt: Date.now() });
       }
     });
-    gcal.create({ localId: evId, summary: name, description: desc || "", date: dateKey, time: time || "", type: "event" });
+    gcal.create({ localId: evId, summary: name, description: desc || "", date: dateKey, time: time || "", endTime: endTime || "", type: "event" });
   };
 
   // ── 이벤트 삭제 (Tombstone / Soft Delete) ──
@@ -150,7 +150,7 @@ export default function useTaskData() {
     setModal({ type: "addCalendarEvent", dateKey, dateLabel: `${calYear}.${String(calMonth + 1).padStart(2, "0")}.${String(day).padStart(2, "0")}` });
   };
 
-  const addEventAsSubtask = (projectId, name, desc, dateKey, time) => {
+  const addEventAsSubtask = (projectId, name, desc, dateKey, time, endTime) => {
     const newId = generateId();
     updateData((d) => {
       const p = d.projects.find((x) => x.id === projectId);
@@ -158,12 +158,12 @@ export default function useTaskData() {
       p.subtasks.push({ id: newId, name, done: false, children: [], description: desc || "", updatedAt: Date.now() });
       if (!d.scheduled) d.scheduled = {};
       if (!d.scheduled[dateKey]) d.scheduled[dateKey] = [];
-      d.scheduled[dateKey].push({ projectId, taskId: newId, time: time || "", updatedAt: Date.now() });
+      d.scheduled[dateKey].push({ projectId, taskId: newId, time: time || "", endTime: endTime || "", updatedAt: Date.now() });
       if (dateKey === todayKey()) {
         d.todayTasks.push({ projectId, taskId: newId, completed: false, time: time || "", updatedAt: Date.now() });
       }
     });
-    gcal.create({ localId: newId, summary: name, description: desc || "", date: dateKey, time: time || "", type: "scheduled" });
+    gcal.create({ localId: newId, summary: name, description: desc || "", date: dateKey, time: time || "", endTime: endTime || "", type: "scheduled" });
   };
 
   // ── 독립 일정 → 프로젝트 하위 업무로 편입 ──
@@ -461,7 +461,7 @@ export default function useTaskData() {
     addProject, editProject, deleteProject, archiveProject, restoreProject, reorderProjects,
 
     // 서브태스크
-    addSubtask, editSubtask, editSubtaskDesc, deleteSubtask, reorderSubtasks,
+    addSubtask, editSubtask, editSubtaskDesc, editSubtaskTime, deleteSubtask, reorderSubtasks,
 
     // 오늘 할 일
     addToToday, toggleTodayTask, removeFromToday, updateCompletedAt,

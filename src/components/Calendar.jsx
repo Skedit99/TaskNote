@@ -12,8 +12,8 @@ export default function Calendar({ ctx }) {
     calendarRange, getHolidayForDay,
   } = ctx;
 
-  const CheckBox = ({ done, onClick }) => (
-    <div onClick={onClick} style={{ width: 24, height: 24, borderRadius: 8, border: done ? undefined : `2.5px solid ${T.textMut}`, background: done ? "linear-gradient(135deg,#10b981,#059669)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer", transition: "all .15s" }}>
+  const CheckBox = ({ done, onClick, color }) => (
+    <div onClick={onClick} style={{ width: 24, height: 24, borderRadius: 8, border: done ? undefined : `2.5px solid ${color || T.textMut}`, background: done ? "linear-gradient(135deg,#10b981,#059669)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer", transition: "background .15s" }}>
       {done && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>}
     </div>
   );
@@ -78,7 +78,7 @@ export default function Calendar({ ctx }) {
           <p style={{ fontSize: 14, fontWeight: 600, color: T.warnText, marginBottom: 8 }}>● 오늘 할 일</p>
           {dayToday.map((t, i) => { const pc = getColorForProjectId(t.projectId); return (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: pc.light + "66", border: `1px solid ${pc.color}33`, borderLeft: `4px solid ${pc.color}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: t.projectId, taskId: t.taskId })}>
-              <CheckBox done={false} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{t.taskName}</p><p style={{ fontSize: 13, color: T.textMut }}>{t.projectName}</p></div>
+              <CheckBox done={false} color={pc.color} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{t.taskName}</p><p style={{ fontSize: 13, color: T.textMut }}>{t.projectName}</p></div>
               <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", fontSize: 15, color: T.textMut }} onClick={(e) => { e.stopPropagation(); removeFromToday(t.taskId); }}>✕</button>
             </div>); })}
         </div>}
@@ -87,7 +87,7 @@ export default function Calendar({ ctx }) {
           <p style={{ fontSize: 14, fontWeight: 600, color: T.accent, marginBottom: 8 }}>◇ 예약된 업무</p>
           {daySched.map((s, i) => { const pc = getColorForProjectId(s.projectId); return (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: pc.light + "66", border: `1px solid ${pc.color}33`, borderLeft: `4px solid ${pc.color}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: s.projectId, taskId: s.taskId })}>
-              <CheckBox done={false} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{s.taskName}</p><p style={{ fontSize: 13, color: T.textMut }}>{s.projectName}</p></div>
+              <CheckBox done={false} color={pc.color} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{s.taskName}</p><p style={{ fontSize: 13, color: T.textMut }}>{s.projectName}</p></div>
               <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", fontSize: 15, color: T.textMut }} onClick={(e) => { e.stopPropagation(); deleteScheduled(dateKey, s.taskId); }}>✕</button>
             </div>); })}
         </div>}
@@ -152,16 +152,17 @@ export default function Calendar({ ctx }) {
               style={{
                 textAlign: "center", padding: "4px 4px 6px", borderRadius: 10, minHeight: 100,
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
-                transition: "all .12s", overflow: "hidden",
+                overflow: "hidden",
                 background: today && !isSel ? T.primaryLight : "transparent",
                 color: (holiday || i % 7 === 0) ? "#ef4444" : i % 7 === 6 ? "#3b82f6" : T.text,
                 cursor: day ? "pointer" : "default", fontWeight: today ? 700 : 400,
-                border: holiday && day ? `2px solid #ef4444` : today && !isSel ? `2px solid ${T.primary}` : isSel ? `2px solid ${T.primary}` : "2px solid transparent",
+                border: holiday && day ? `2px solid #ef4444` : today && !isSel ? `2px solid ${T.primary}` : isSel ? `2px solid ${T.primary}` : `1px solid ${T.border}`,
               }}>
               {day && (<>
-                <span style={{ fontSize: 14, lineHeight: "22px", width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: isSel ? T.primary : "transparent", color: isSel ? "white" : holiday ? "#ef4444" : undefined, fontWeight: isSel ? 700 : today ? 700 : 400, transition: "all .15s" }}>{day}</span>
+                <span style={{ fontSize: 14, lineHeight: "22px", width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: isSel ? T.primary : "transparent", color: isSel ? "white" : holiday ? "#ef4444" : undefined, fontWeight: isSel ? 700 : today ? 700 : 400 }}>{day}</span>
                 <div style={{ marginTop: 3, width: "100%", display: "flex", flexDirection: "column", gap: 2 }}>
-                  {allItems.slice(0, 3).map((item, ci) => {
+                  {holiday && <div style={{ fontSize: 10, padding: "1px 3px", borderRadius: 3, color: "#ef4444", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "14px" }}>{holiday}</div>}
+                  {allItems.slice(0, holiday ? 2 : 3).map((item, ci) => {
                     const pc = (item.pid && item.pid !== "recurring" && item.pid !== "event") ? getColorForProjectId(item.pid) : null;
                     const isDone = item.type === "done";
                     const isRecur = item.type === "recur";
@@ -174,8 +175,7 @@ export default function Calendar({ ctx }) {
                     const prefix = isDone ? "✓ " : isRecur ? "↻ " : isEvent ? "★ " : item.type === "sched" ? "◇ " : "● ";
                     return <div key={ci} style={{ fontSize: 11, padding: "2px 4px", borderRadius: 4, background: bg, color: clr, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "16px", fontWeight: 600 }}>{prefix}{item.name}</div>;
                   })}
-                  {allItems.length > 3 && <span style={{ fontSize: 10, color: T.textMut }}>+{allItems.length - 3}</span>}
-                  {holiday && <div style={{ fontSize: 10, padding: "1px 3px", borderRadius: 3, color: "#ef4444", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "14px" }}>{holiday}</div>}
+                  {allItems.length > (holiday ? 2 : 3) && <span style={{ fontSize: 10, color: T.textMut }}>+{allItems.length - (holiday ? 2 : 3)}</span>}
                 </div>
               </>)}
             </div>

@@ -10,12 +10,12 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif; background: #0f0f14; color: #e8e8ec; line-height: 1.7; overflow-x: hidden; }
+    img { max-width: 100%; height: auto; }
 
     /* 히어로 */
     .hero {
-      min-height: 100vh;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      text-align: center; padding: 60px 24px;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 80px 24px 60px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       position: relative; overflow: hidden;
     }
@@ -24,11 +24,11 @@
       background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.08) 0%, transparent 50%),
                   radial-gradient(circle at 70% 80%, rgba(255,255,255,0.05) 0%, transparent 40%);
     }
-    .hero-content { position: relative; z-index: 1; max-width: 700px; }
-    .hero-icon { width: 80px; height: 80px; border-radius: 20px; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .hero-content { position: relative; z-index: 1; max-width: 900px; }
+    .hero-icon { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
     .hero h1 { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 12px; color: #fff; }
-    .hero .tagline { font-size: 18px; color: rgba(255,255,255,0.85); margin-bottom: 40px; line-height: 1.6; }
-    .hero-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero .tagline { font-size: 18px; color: rgba(255,255,255,0.85); margin-bottom: 36px; line-height: 1.6; }
+    .hero-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 48px; }
     .btn-primary {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 16px 36px; background: #fff; color: #667eea;
@@ -43,49 +43,74 @@
       transition: all 0.2s; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.2);
     }
     .btn-secondary:hover { background: rgba(255,255,255,0.25); }
+    .hero-screenshot {
+      border-radius: 12px; box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+      max-width: 820px; width: 100%;
+    }
     .scroll-hint {
-      position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
       color: rgba(255,255,255,0.5); font-size: 13px; animation: bounce 2s infinite;
     }
     @keyframes bounce { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(8px)} }
 
-    /* 기능 섹션 */
-    .section { padding: 100px 24px; max-width: 1000px; margin: 0 auto; }
+    /* 섹션 공통 */
+    .section { padding: 100px 24px; max-width: 1100px; margin: 0 auto; }
     .section-title {
       font-size: 36px; font-weight: 800; text-align: center; margin-bottom: 16px;
       background: linear-gradient(135deg, #667eea, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .section-desc { text-align: center; color: #888; font-size: 16px; margin-bottom: 60px; }
 
-    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+    /* 기능 카드 */
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
     .feature-card {
       background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 16px;
-      padding: 32px 28px; transition: all 0.3s;
+      padding: 28px 24px; transition: all 0.3s;
     }
     .feature-card:hover { border-color: #667eea44; transform: translateY(-4px); box-shadow: 0 12px 40px rgba(102,126,234,0.1); }
-    .feature-icon { font-size: 32px; margin-bottom: 16px; display: block; }
-    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #f0f0f4; }
-    .feature-card p { font-size: 14px; color: #888; line-height: 1.7; }
+    .feature-icon { font-size: 28px; margin-bottom: 12px; display: block; }
+    .feature-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; color: #f0f0f4; }
+    .feature-card p { font-size: 13px; color: #888; line-height: 1.7; }
 
-    /* 하이라이트 */
-    .highlights {
-      padding: 80px 24px; background: #14141c;
+    /* 쇼케이스 섹션 */
+    .showcase { padding: 80px 24px; }
+    .showcase:nth-child(even) { background: #14141c; }
+    .showcase-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 48px; }
+    .showcase-inner.reverse { flex-direction: row-reverse; }
+    .showcase-inner .showcase-visual { flex: 1.2; }
+    .showcase-inner .showcase-text { flex: 0.8; }
+    .showcase-text { flex: 1; min-width: 0; }
+    .showcase-text .label { font-size: 13px; font-weight: 700; color: #667eea; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+    .showcase-text h3 { font-size: 28px; font-weight: 800; margin-bottom: 16px; line-height: 1.4; }
+    .showcase-text p { font-size: 15px; color: #999; line-height: 1.8; }
+    .showcase-text ul { list-style: none; margin-top: 16px; }
+    .showcase-text ul li { font-size: 14px; color: #aaa; padding: 4px 0; }
+    .showcase-text ul li::before { content: "✓ "; color: #667eea; font-weight: 700; }
+    .showcase-visual { flex: 1; min-width: 0; display: flex; gap: 16px; align-items: center; justify-content: center; }
+    .showcase-visual img { border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
+    .showcase-visual .img-single { width: 100%; }
+    .showcase-visual .img-pair { width: 48%; }
+
+    /* 다크/라이트 비교 */
+    .theme-compare {
+      padding: 100px 24px; background: #14141c;
     }
-    .highlights-inner { max-width: 1000px; margin: 0 auto; }
-    .highlight-row {
-      display: flex; align-items: center; gap: 60px; margin-bottom: 80px;
-    }
-    .highlight-row:nth-child(even) { flex-direction: row-reverse; }
-    .highlight-text { flex: 1; }
-    .highlight-text h3 { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
-    .highlight-text p { font-size: 15px; color: #999; line-height: 1.8; }
-    .highlight-visual {
-      flex: 1; height: 240px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
-      font-size: 64px;
-    }
-    .hl-gcal { background: linear-gradient(135deg, #4285f420, #34a85320); border: 1px solid #4285f433; }
-    .hl-widget { background: linear-gradient(135deg, #667eea20, #764ba220); border: 1px solid #667eea33; }
-    .hl-recurring { background: linear-gradient(135deg, #E8843C20, #f5a62320); border: 1px solid #E8843C33; }
+    .theme-compare-inner { max-width: 1100px; margin: 0 auto; text-align: center; }
+    .theme-images { display: flex; gap: 24px; justify-content: center; margin-top: 48px; }
+    .theme-img-wrap { flex: 1; max-width: 520px; }
+    .theme-img-wrap img { width: 100%; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
+    .theme-img-wrap .theme-label { font-size: 14px; font-weight: 600; color: #888; margin-top: 12px; }
+
+    /* 위젯 쇼케이스 */
+    .widget-group { display: flex; gap: 16px; align-items: flex-end; justify-content: flex-start; }
+    .widget-group img { border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
+    .widget-group .widget-lg { height: 320px; width: auto; }
+    .widget-group .widget-md { height: 270px; width: auto; }
+    .widget-group .widget-sm { height: 230px; width: auto; }
+
+    /* 모달 갤러리 */
+    .modal-gallery { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-top: 48px; }
+    .modal-gallery img { height: 300px; width: auto; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
 
     /* CTA */
     .cta {
@@ -106,12 +131,20 @@
     .footer-copy { font-size: 13px; color: #555; }
 
     /* 반응형 */
+    @media (max-width: 900px) {
+      .features { grid-template-columns: repeat(2, 1fr); }
+    }
     @media (max-width: 768px) {
       .hero h1 { font-size: 32px; }
       .hero .tagline { font-size: 16px; }
       .section-title { font-size: 28px; }
-      .highlight-row, .highlight-row:nth-child(even) { flex-direction: column; gap: 24px; }
-      .highlight-visual { width: 100%; height: 180px; }
+      .features { grid-template-columns: 1fr; }
+      .showcase-inner, .showcase-inner.reverse { flex-direction: column; gap: 32px; }
+      .showcase-visual { width: 100%; }
+      .theme-images { flex-direction: column; align-items: center; }
+      .widget-group { flex-direction: column; align-items: center; }
+      .widget-group img { height: auto; width: 80%; max-width: 280px; }
+      .modal-gallery img { height: auto; width: 80%; max-width: 320px; }
     }
 
     /* 스크롤 애니메이션 */
@@ -128,7 +161,7 @@
       <h1>TaskNote</h1>
       <p class="tagline">프로젝트 업무, 독립 일정, 정기 업무를<br>하나의 캘린더에서 한눈에 관리하세요</p>
       <div class="hero-buttons">
-        <a href="https://github.com/Skedit99/TaskNote/releases/download/v1.0.0/TaskNote-Setup-1.0.0.exe" class="btn-primary" download>
+        <a href="https://github.com/Skedit99/TaskNote/releases/download/v1.0.1/TaskNote-Setup-1.0.1.exe" class="btn-primary" download>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           다운로드 (Windows)
         </a>
@@ -137,72 +170,181 @@
           GitHub
         </a>
       </div>
+      <img src="images/%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-%EB%B3%B4%EA%B4%80%ED%95%A8.png" alt="TaskNote 메인 화면" class="hero-screenshot">
     </div>
-    <div class="scroll-hint">아래로 스크롤하여 더 알아보기</div>
+    <div class="scroll-hint">아래로 스크롤하여 더 알아보기 ↓</div>
   </section>
 
   <!-- 주요 기능 -->
   <section class="section">
     <h2 class="section-title fade-in">주요 기능</h2>
     <p class="section-desc fade-in">업무 관리에 필요한 모든 것을 하나의 앱에서</p>
-
     <div class="features">
       <div class="feature-card fade-in">
-        <span class="feature-icon">&#x1F4CB;</span>
+        <span class="feature-icon">📋</span>
         <h3>프로젝트 관리</h3>
-        <p>프로젝트별 세부 업무를 트리 구조로 관리하고, 색상 태그로 한눈에 구분하세요. 드래그 앤 드롭으로 순서도 자유롭게.</p>
+        <p>프로젝트별 세부 업무를 관리하고, 색상 태그로 한눈에 구분하세요.</p>
       </div>
       <div class="feature-card fade-in">
-        <span class="feature-icon">&#x1F4C5;</span>
-        <h3>캘린더</h3>
-        <p>월간 캘린더에서 모든 업무 일정을 확인하고, 날짜별로 업무를 예약하세요. 공휴일도 자동으로 표시됩니다.</p>
+        <span class="feature-icon">📅</span>
+        <h3>월간 캘린더</h3>
+        <p>캘린더에서 모든 업무를 확인하고, 날짜별로 업무를 예약하세요.</p>
       </div>
       <div class="feature-card fade-in">
-        <span class="feature-icon">&#x2705;</span>
+        <span class="feature-icon">✅</span>
         <h3>오늘 할 일</h3>
-        <p>오늘의 업무를 우선순위로 정리하고, 완료 체크와 진행률을 실시간으로 확인하세요.</p>
+        <p>오늘의 업무를 정리하고, 진행률을 실시간으로 확인하세요.</p>
       </div>
       <div class="feature-card fade-in">
-        <span class="feature-icon">&#x1F504;</span>
+        <span class="feature-icon">🔄</span>
         <h3>정기 업무</h3>
-        <p>매주, 매월, 격주 등 반복되는 업무를 자동으로 등록. 시작일과 종료일도 설정 가능합니다.</p>
+        <p>매주, 매월, 격주 등 반복 업무를 자동 등록. 시작일·종료일 설정 가능.</p>
       </div>
       <div class="feature-card fade-in">
-        <span class="feature-icon">&#x1F310;</span>
+        <span class="feature-icon">🌐</span>
         <h3>Google 캘린더 연동</h3>
-        <p>양방향 실시간 동기화로 앱과 Google 캘린더가 항상 최신 상태를 유지합니다.</p>
+        <p>양방향 실시간 동기화로 항상 최신 상태를 유지합니다.</p>
       </div>
       <div class="feature-card fade-in">
-        <span class="feature-icon">&#x1F5A5;</span>
+        <span class="feature-icon">🖥️</span>
         <h3>위젯 모드</h3>
-        <p>컴팩트한 위젯을 바탕화면에 고정하고, 항상 위 모드로 오늘의 할 일을 빠르게 확인하세요.</p>
+        <p>바탕화면 위젯으로 오늘 할 일을 항상 확인하세요.</p>
       </div>
     </div>
   </section>
 
-  <!-- 하이라이트 -->
-  <section class="highlights">
-    <div class="highlights-inner">
-      <div class="highlight-row fade-in">
-        <div class="highlight-text">
-          <h3>Google 캘린더와 완벽하게 연동</h3>
-          <p>앱에서 추가한 업무가 Google 캘린더에 자동 반영되고, Google 캘린더에서 추가한 일정도 앱에 자동으로 등록됩니다. 완료 상태까지 실시간으로 동기화됩니다.</p>
-        </div>
-        <div class="highlight-visual hl-gcal">&#x1F4E1;</div>
+  <!-- 쇼케이스 1: 프로젝트 & 업무 -->
+  <section class="showcase">
+    <div class="showcase-inner fade-in">
+      <div class="showcase-text">
+        <div class="label">프로젝트 관리</div>
+        <h3>프로젝트와 세부 업무를<br>체계적으로 관리</h3>
+        <p>색상 태그로 프로젝트를 구분하고, 세부 업무를 추가하여 진행 상황을 한눈에 파악하세요. D-Day 카운터로 마감일도 놓치지 않습니다.</p>
+        <ul>
+          <li>8가지 프로젝트 색상 태그</li>
+          <li>세부 업무 추가 및 완료 체크</li>
+          <li>D-Day 자동 카운터</li>
+        </ul>
       </div>
-      <div class="highlight-row fade-in">
-        <div class="highlight-text">
-          <h3>바탕화면 위젯으로 빠른 확인</h3>
-          <p>전체 앱을 열지 않아도 위젯 모드로 오늘의 할 일과 진행률을 바탕화면에서 바로 확인할 수 있습니다. 항상 위 모드를 지원합니다.</p>
-        </div>
-        <div class="highlight-visual hl-widget">&#x1F4F1;</div>
+      <div class="showcase-visual">
+        <img src="images/%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8%20%EC%B6%94%EA%B0%80.jpg" alt="프로젝트 추가" class="img-single">
       </div>
-      <div class="highlight-row fade-in">
-        <div class="highlight-text">
-          <h3>반복 업무를 자동으로</h3>
-          <p>매주 회의, 매월 보고서 등 정기적인 업무를 한 번만 등록하면 자동으로 캘린더에 나타납니다. 격주, 특정 요일 등 다양한 패턴을 지원합니다.</p>
+    </div>
+  </section>
+
+  <!-- 쇼케이스 2: 업무 편집 -->
+  <section class="showcase">
+    <div class="showcase-inner reverse fade-in">
+      <div class="showcase-text">
+        <div class="label">업무 편집</div>
+        <h3>업무 시간과 메모를<br>간편하게 설정</h3>
+        <p>시작 시간과 종료 시간을 설정하고, 메모를 추가하여 업무를 더욱 구체적으로 관리하세요. 설정한 시간은 Google 캘린더에도 자동 반영됩니다.</p>
+        <ul>
+          <li>시작·종료 시간 설정</li>
+          <li>메모 및 설명 추가</li>
+          <li>Google 캘린더 자동 반영</li>
+        </ul>
+      </div>
+      <div class="showcase-visual">
+        <img src="images/%EC%97%85%EB%AC%B4%20%ED%8E%B8%EC%A7%91%20%EB%B0%8F%20%EC%B6%94%EA%B0%80.jpg" alt="업무 편집" class="img-single">
+      </div>
+    </div>
+  </section>
+
+  <!-- 쇼케이스 3: 정기 업무 -->
+  <section class="showcase">
+    <div class="showcase-inner fade-in">
+      <div class="showcase-text">
+        <div class="label">정기 업무</div>
+        <h3>반복 업무를 한 번만<br>등록하면 끝</h3>
+        <p>매주 회의, 매월 보고서 등 정기적인 업무를 자동으로 캘린더에 등록합니다. 격주, 3주, 4주 간격까지 다양한 패턴을 지원합니다.</p>
+        <ul>
+          <li>주간·월간 반복 설정</li>
+          <li>격주·3주·4주 간격 지원</li>
+          <li>시작일·종료일 지정 가능</li>
+        </ul>
+      </div>
+      <div class="showcase-visual">
+        <img src="images/%EC%A3%BC%EA%B0%84%20%EC%97%85%EB%AC%B4%20%EC%B6%94%EA%B0%80.jpg" alt="주간 업무 추가" class="img-single">
+      </div>
+    </div>
+  </section>
+
+  <!-- 쇼케이스 4: 위젯 모드 -->
+  <section class="showcase">
+    <div class="showcase-inner reverse fade-in">
+      <div class="showcase-text">
+        <div class="label">위젯 모드</div>
+        <h3>바탕화면에서 바로<br>오늘의 할 일 확인</h3>
+        <p>컴팩트한 위젯을 바탕화면에 고정하세요. 오늘 할 일 목록, 캘린더 뷰, 축소형 위젯 등 다양한 모드를 지원합니다. 항상 위/아래 모드로 작업 중에도 확인 가능합니다.</p>
+        <ul>
+          <li>오늘 할 일 위젯</li>
+          <li>캘린더 위젯 (공휴일 표시)</li>
+          <li>항상 위에·항상 아래 모드</li>
+        </ul>
+      </div>
+      <div class="showcase-visual">
+        <div class="widget-group">
+          <img src="images/%EC%BA%98%EB%A6%B0%EB%8D%94%20%EC%9C%84%EC%A0%AF%EB%AA%A8%EB%93%9C.jpg" alt="캘린더 위젯" class="widget-lg">
+          <img src="images/%EC%98%A4%EB%8A%98%ED%95%A0%EC%9D%BC%20%EC%9C%84%EC%A0%AF%EB%AA%A8%EB%93%9C.jpg" alt="오늘할일 위젯" class="widget-md">
+          <img src="images/%EC%9C%84%EC%A0%AF%EB%AA%A8%EB%93%9C%20%EC%B6%95%EC%86%8C%ED%98%95.jpg" alt="축소형 위젯" class="widget-sm">
         </div>
-        <div class="highlight-visual hl-recurring">&#x1F501;</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 쇼케이스 5: Google 캘린더 -->
+  <section class="showcase">
+    <div class="showcase-inner fade-in">
+      <div class="showcase-text">
+        <div class="label">Google Calendar</div>
+        <h3>Google 캘린더와<br>완벽하게 연동</h3>
+        <p>앱에서 추가한 업무가 Google 캘린더에 자동 반영되고, Google 캘린더의 일정도 앱에 표시됩니다. 완료 상태까지 실시간 동기화됩니다.</p>
+        <ul>
+          <li>양방향 실시간 동기화</li>
+          <li>공휴일 자동 표시</li>
+          <li>오프라인 변경사항 자동 동기화</li>
+        </ul>
+      </div>
+      <div class="showcase-visual">
+        <img src="images/%EA%B5%AC%EA%B8%80-%EC%BA%98%EB%A6%B0%EB%8D%94-%EC%97%B0%EB%8F%99-%ED%99%94%EB%A9%B4.png" alt="Google 캘린더 연동" class="img-single">
+      </div>
+    </div>
+  </section>
+
+  <!-- 다크/라이트 모드 비교 -->
+  <section class="theme-compare">
+    <div class="theme-compare-inner">
+      <h2 class="section-title fade-in">다크 모드 & 라이트 모드</h2>
+      <p class="section-desc fade-in">눈이 편한 모드를 선택하세요. 원클릭으로 전환됩니다.</p>
+      <div class="theme-images fade-in">
+        <div class="theme-img-wrap">
+          <img src="images/%EB%8B%A4%ED%81%AC%EB%AA%A8%EB%93%9C.png" alt="다크 모드">
+          <div class="theme-label">다크 모드</div>
+        </div>
+        <div class="theme-img-wrap">
+          <img src="images/%EB%9D%BC%EC%9D%B4%ED%8A%B8%EB%AA%A8%EB%93%9C.png" alt="라이트 모드">
+          <div class="theme-label">라이트 모드</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 쇼케이스 6: 편의 기능 -->
+  <section class="showcase">
+    <div class="showcase-inner reverse fade-in">
+      <div class="showcase-text">
+        <div class="label">편의 기능</div>
+        <h3>세심한 설정으로<br>나만의 워크플로우</h3>
+        <p>위젯 모드 동작 방식, 일정 표시 범위, 데이터 저장 경로까지 세밀하게 설정할 수 있습니다. 클라우드 폴더를 지정하면 여러 PC에서 데이터를 동기화할 수 있습니다.</p>
+        <ul>
+          <li>Windows 시작 시 자동 실행</li>
+          <li>일정 표시 범위 커스텀</li>
+          <li>OneDrive/Google Drive 멀티PC 동기화</li>
+        </ul>
+      </div>
+      <div class="showcase-visual">
+        <img src="images/%ED%8E%B8%EC%9D%98%EA%B8%B0%EB%8A%A5.jpg" alt="설정" class="img-single">
       </div>
     </div>
   </section>
@@ -211,7 +353,7 @@
   <section class="cta">
     <h2>지금 바로 시작하세요</h2>
     <p>무료로 다운로드하고 업무를 더 스마트하게 관리하세요</p>
-    <a href="https://github.com/Skedit99/TaskNote/releases/download/v1.0.0/TaskNote-Setup-1.0.0.exe" class="btn-primary" download>
+    <a href="https://github.com/Skedit99/TaskNote/releases/download/v1.0.1/TaskNote-Setup-1.0.1.exe" class="btn-primary" download>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       무료 다운로드
     </a>
@@ -229,15 +371,11 @@
   </footer>
 
   <script>
-    // 스크롤 페이드인 애니메이션
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-        }
+        if (entry.isIntersecting) entry.target.classList.add('visible');
       });
     }, { threshold: 0.1 });
-
     document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
   </script>
 </body>

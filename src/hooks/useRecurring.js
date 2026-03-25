@@ -164,7 +164,13 @@ export function createRecurringActions({ data, updateData, gcal }) {
       // 醫낅즺??泥댄겕
       if (r.startDate && dateKey < r.startDate) return false;
       if (r.endDate && dateKey > r.endDate) return false;
-      if (r.type === "monthly") return dom === r.dayValue;
+      if (r.type === "monthly") {
+        if (r.dayValue === -1) {
+          const lastDay = new Date(y, m + 1, 0).getDate();
+          return dom === lastDay;
+        }
+        return dom === r.dayValue;
+      }
       if (r.type === "weekly") {
         if (dow !== r.dayValue) return false;
         const interval = r.interval || 1;

@@ -50,7 +50,7 @@ export default function TaskItem({
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "7px 10px", borderRadius: 10,
           border: isInToday && !task.done ? `1.5px solid ${pc.color}88` : `1px solid ${T.border}`,
-          background: isScheduled && !task.done ? T.primaryLight + "88" : isInToday && !task.done ? pc.light + "88" : T.surfaceBg,
+          background: isScheduled && !task.done ? pc.light + "88" : isInToday && !task.done ? pc.light + "88" : T.surfaceBg,
           marginBottom: 3, minHeight: 42, marginLeft: depth * 20,
           opacity: task.done && !hasChildren ? 0.4 : 1,
           ...(depth > 0 ? { borderLeft: `3px solid ${bc}33` } : {}),
@@ -93,8 +93,7 @@ export default function TaskItem({
               const badgeBg = isPast ? "#fef2f2" : T.primaryLight;
               return (
                 <span style={{ padding: "3px 8px", background: badgeBg, color: badgeColor, borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                  onClick={(e) => { e.stopPropagation(); const [y, m, d] = existingSched.dateKey.split("-"); /* calendar navigation would need to be passed */ }}
-                  onDoubleClick={(e) => { e.stopPropagation(); setModal({ type: "editTaskTime", taskId: task.id, taskName: task.name, currentTime: schedTime || "" }); }}>
+                  onClick={(e) => { e.stopPropagation(); }}>
                   {existingSched.label}{schedTime ? ` ${schedTime}` : ""}
                 </span>
               );
@@ -105,15 +104,14 @@ export default function TaskItem({
           {isInToday && !task.done && (() => {
             const tTime = getTaskTime(task.id);
             return (
-              <span style={{ padding: "3px 8px", background: pc.light, color: pc.color, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                onDoubleClick={(e) => { e.stopPropagation(); setModal({ type: "editTaskTime", taskId: task.id, taskName: task.name, currentTime: tTime || "" }); }}>
+              <span style={{ padding: "3px 8px", background: pc.light, color: pc.color, borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
                 오늘{tTime ? ` ${tTime}` : ""}
               </span>
             );
           })()}
           {task.done && !hasChildren && <span style={{ padding: "3px 8px", background: T.doneBg, color: T.doneText, borderRadius: 6, fontSize: 12, fontWeight: 600 }}>완료</span>}
           <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", borderRadius: 7, fontSize: 15, color: T.textMut, display: "flex", alignItems: "center", justifyContent: "center" }}
-            onClick={() => setModal({ type: "editTask", projectId, taskId: task.id, currentName: task.name, currentDesc: task.description || "" })}>✎</button>
+            onClick={() => setModal({ type: "editTask", projectId, taskId: task.id, currentName: task.name, currentDesc: task.description || "", currentTime: task.time || "", currentEndTime: task.endTime || "" })}>✎</button>
           <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", borderRadius: 7, fontSize: 20, color: T.textMut, display: "flex", alignItems: "center", justifyContent: "center" }}
             onClick={() => setModal({ type: "addSubtask", parentId: task.id })}>+</button>
           <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", borderRadius: 7, fontSize: 15, color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center" }}

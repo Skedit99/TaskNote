@@ -213,6 +213,7 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
               <p style={{ margin: "0 0 4px" }}>• Google 캘린더 읽기/쓰기 권한을 요청합니다</p>
               <p style={{ margin: "0 0 4px" }}>• 인증 정보는 이 PC에만 안전하게 저장됩니다</p>
               <p style={{ margin: "0 0 4px" }}>• 언제든 연결을 해제할 수 있습니다</p>
+              <p style={{ margin: "0 0 4px" }}>• 공휴일을 표시하려면 <a href="https://calendar.google.com/calendar/r/settings" target="_blank" rel="noopener noreferrer" style={{ color: T.primary }}>Google Calendar 설정</a> → 관심 있는 캘린더 추가 → 지역별 휴일에서 <b style={{ color: T.textSec }}>대한민국의 휴일</b>을 활성화하세요</p>
               <p style={{ margin: 0 }}>• <a href="https://skedit-tasknote.online/privacy-policy.html" target="_blank" rel="noopener noreferrer" style={{ color: T.primary }}>개인정보처리방침</a>에서 자세한 내용을 확인하세요</p>
             </div>
           </div>

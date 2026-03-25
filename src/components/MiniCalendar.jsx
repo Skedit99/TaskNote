@@ -118,10 +118,10 @@ export default function MiniCalendar({ ctx }) {
                     color: (holiday || i % 7 === 0) ? "#ef4444" : i % 7 === 6 ? "#3b82f6" : T.text,
                     fontWeight: today ? 700 : 400,
                     border: holiday && day ? `2px solid #ef4444` : today && !isSel ? `2px solid ${T.primary}` : isSel ? `2px solid ${T.primary}` : "2px solid transparent",
-                    transition: "all .1s", opacity: day ? 1 : 0, overflow: "hidden",
+                    opacity: day ? 1 : 0, overflow: "hidden",
                   }}>
                   {day && (<>
-                    <span style={{ fontSize: 13, lineHeight: "20px", width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", background: isSel ? T.primary : "transparent", color: isSel ? "white" : holiday ? "#ef4444" : undefined, fontWeight: isSel ? 700 : today ? 700 : 400, transition: "all .15s" }}>{day}</span>
+                    <span style={{ fontSize: 13, lineHeight: "20px", width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", background: isSel ? T.primary : "transparent", color: isSel ? "white" : holiday ? "#ef4444" : undefined, fontWeight: isSel ? 700 : today ? 700 : 400 }}>{day}</span>
                     {cnt > 0 && <div style={{ display: "flex", gap: 2, marginTop: 1, justifyContent: "center", flexWrap: "wrap" }}>
                       {todayT.length > 0 && <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.warnText }} />}
                       {filtSched.length > 0 && <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.accent }} />}

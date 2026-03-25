@@ -35,66 +35,54 @@ export function ProjectForm({ initial, onSubmit, onCancel, T }) {
 export function SubtaskForm({ parentId, onSubmit, onCancel, T }) {
   const [n, sN] = useState("");
   const [d, sD] = useState("");
+  const [time, setTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const inp = { width: "100%", padding: "12px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text };
   return (
     <div>
       <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>{parentId ? "하위 단계 추가" : "세부 업무 추가"}</h3>
       <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>이름</label>
-      <input style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text }} value={n} onChange={(e) => sN(e.target.value)} autoFocus placeholder="예: 서론 작성" onKeyDown={(e) => { if (e.key === "Enter" && n.trim()) onSubmit(n.trim(), d); }} />
+      <input style={inp} value={n} onChange={(e) => sN(e.target.value)} autoFocus placeholder="예: 서론 작성" onKeyDown={(e) => { if (e.key === "Enter" && n.trim()) onSubmit(n.trim(), d, time, endTime); }} />
+      <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>시간 (선택)</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input type="time" style={{ ...inp, width: "auto", flex: 1 }} value={time} onChange={(e) => setTime(e.target.value)} />
+        <span style={{ color: T.textMut, fontSize: 16 }}>~</span>
+        <input type="time" style={{ ...inp, width: "auto", flex: 1 }} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+        {(time || endTime) && <button onClick={() => { setTime(""); setEndTime(""); }} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 16, color: T.textMut, padding: 4 }}>✕</button>}
+      </div>
       <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>설명 (선택)</label>
-      <textarea style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text, minHeight: 80, resize: "vertical" }} value={d} onChange={(e) => sD(e.target.value)} placeholder="메모" />
+      <textarea style={{ ...inp, minHeight: 80, resize: "vertical" }} value={d} onChange={(e) => sD(e.target.value)} placeholder="메모" />
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 24 }}>
         <button style={{ padding: "10px 22px", border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 500, color: T.textSec }} onClick={onCancel}>취소</button>
-        <button style={{ padding: "10px 22px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600 }} onClick={() => n.trim() && onSubmit(n.trim(), d)} disabled={!n.trim()}>추가</button>
+        <button style={{ padding: "10px 22px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600 }} onClick={() => n.trim() && onSubmit(n.trim(), d, time, endTime)} disabled={!n.trim()}>추가</button>
       </div>
     </div>
   );
 }
 
-export function EditTaskForm({ currentName, currentDesc, onSubmit, onCancel, T }) {
+export function EditTaskForm({ currentName, currentDesc, currentTime, currentEndTime, onSubmit, onCancel, T }) {
   const [n, sN] = useState(currentName);
   const [d, sD] = useState(currentDesc);
+  const [time, setTime] = useState(currentTime || "");
+  const [endTime, setEndTime] = useState(currentEndTime || "");
+  const inp = { width: "100%", padding: "12px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text };
   return (
     <div>
       <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>업무 편집</h3>
       <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>업무 이름</label>
-      <input style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text }} value={n} onChange={(e) => sN(e.target.value)} autoFocus />
+      <input style={inp} value={n} onChange={(e) => sN(e.target.value)} autoFocus />
+      <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>시간 (선택)</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input type="time" style={{ ...inp, width: "auto", flex: 1 }} value={time} onChange={(e) => setTime(e.target.value)} />
+        <span style={{ color: T.textMut, fontSize: 16 }}>~</span>
+        <input type="time" style={{ ...inp, width: "auto", flex: 1 }} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+        {(time || endTime) && <button onClick={() => { setTime(""); setEndTime(""); }} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 16, color: T.textMut, padding: 4 }}>✕</button>}
+      </div>
       <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>설명 (선택)</label>
-      <textarea style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text, minHeight: 100, resize: "vertical" }} value={d} onChange={(e) => sD(e.target.value)} placeholder="업무에 대한 메모나 설명" />
+      <textarea style={{ ...inp, minHeight: 100, resize: "vertical" }} value={d} onChange={(e) => sD(e.target.value)} placeholder="업무에 대한 메모나 설명" />
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 24 }}>
         <button style={{ padding: "10px 22px", border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 500, color: T.textSec }} onClick={onCancel}>취소</button>
-        <button style={{ padding: "10px 22px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600 }} onClick={() => n.trim() && onSubmit(n.trim(), d)} disabled={!n.trim()}>저장</button>
-      </div>
-    </div>
-  );
-}
-
-export function TaskTimeForm({ taskName, currentTime, onSubmit, onCancel, T }) {
-  const parseT = (t) => { if (!t) return { h: "", m: "" }; const [h, m] = t.split(":"); return { h: h || "", m: m || "" }; };
-  const init = parseT(currentTime);
-  const [hour, sH] = useState(init.h);
-  const [minute, sM] = useState(init.m);
-  const timeStr = hour !== "" && minute !== "" ? `${hour}:${minute}` : "";
-  const inp = { width: "100%", padding: "12px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text };
-  return (
-    <div>
-      <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>시간 설정</h3>
-      <p style={{ fontSize: 15, color: T.textSec, marginBottom: 20 }}>{taskName}</p>
-      <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6 }}>시간</label>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <select style={{ ...inp, flex: 1, cursor: "pointer" }} value={hour} onChange={(e) => sH(e.target.value)}>
-          <option value="">시</option>
-          {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map((h) => <option key={h} value={h}>{h}시</option>)}
-        </select>
-        <span style={{ fontSize: 20, fontWeight: 700, color: T.textMut }}>:</span>
-        <select style={{ ...inp, flex: 1, cursor: "pointer" }} value={minute} onChange={(e) => sM(e.target.value)}>
-          <option value="">분</option>
-          {Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0")).map((m) => <option key={m} value={m}>{m}분</option>)}
-        </select>
-        {(hour !== "" || minute !== "") && <button style={{ padding: "8px 14px", border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 8, cursor: "pointer", fontSize: 13, color: T.textMut }} onClick={() => { sH(""); sM(""); }}>초기화</button>}
-      </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 24 }}>
-        <button style={{ padding: "10px 22px", border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 500, color: T.textSec }} onClick={onCancel}>취소</button>
-        <button style={{ padding: "10px 22px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600 }} onClick={() => onSubmit(timeStr)}>저장</button>
+        <button style={{ padding: "10px 22px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600 }} onClick={() => n.trim() && onSubmit(n.trim(), d, time, endTime)} disabled={!n.trim()}>저장</button>
       </div>
     </div>
   );
@@ -173,7 +161,7 @@ export function RecurringForm({ type, initial, onSubmit, onCancel, T }) {
       <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>{type === "weekly" ? "요일" : "일자"}</label>
       {type === "weekly"
         ? <div style={{ display: "flex", gap: 6, marginTop: 6 }}>{DAYS_KR.map((d, i) => <button key={i} onClick={() => sDv(i)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 16, fontWeight: 600, background: dv === i ? T.primary : T.surfaceBg, color: dv === i ? "white" : T.text }}>{d}</button>)}</div>
-        : <select style={{ ...inp, cursor: "pointer" }} value={dv} onChange={(e) => sDv(Number(e.target.value))}>{Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}일</option>)}</select>}
+        : <select style={{ ...inp, cursor: "pointer" }} value={dv} onChange={(e) => sDv(Number(e.target.value))}>{Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}일</option>)}<option value={-1}>말일 (매월 마지막 날)</option></select>}
       {type === "weekly" && <>
         <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6, marginTop: 16 }}>갱신 주기</label>
         <div style={{ display: "flex", gap: 6, marginTop: 6 }}>{[{ v: 1, l: "매주" }, { v: 2, l: "격주" }, { v: 3, l: "3주" }, { v: 4, l: "4주" }].map((o) => (<button key={o.v} onClick={() => sI(o.v)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 16, fontWeight: 600, background: intv === o.v ? T.primary : T.surfaceBg, color: intv === o.v ? "white" : T.text }}>{o.l}</button>))}</div>

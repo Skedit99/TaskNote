@@ -106,6 +106,16 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
           }
         }
       }
+      // completedToday에서도 제거 (완료 해제 후 삭제 시 잔여 방지)
+      if (d.completedToday) {
+        for (const [dk, items] of Object.entries(d.completedToday)) {
+          const idx = items.findIndex((c) => c.taskId === tid);
+          if (idx !== -1) {
+            d.completedToday[dk].splice(idx, 1);
+            if (d.completedToday[dk].length === 0) delete d.completedToday[dk];
+          }
+        }
+      }
     });
     gcal.del(tid);
   };

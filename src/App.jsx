@@ -15,7 +15,7 @@ import Sidebar from "./components/Sidebar";
 // 모달
 import SettingsModal from "./components/modals/SettingsModal";
 import CalendarEventForm from "./components/modals/CalendarEventForm";
-import { ProjectForm, SubtaskForm, EditTaskForm, TaskTimeForm, RecurringForm, ConvertEventForm } from "./components/modals/FormComponents";
+import { ProjectForm, SubtaskForm, EditTaskForm, RecurringForm, ConvertEventForm } from "./components/modals/FormComponents";
 
 // ── 약관 동의 화면 ──
 function TermsAgreement({ onAgree }) {
@@ -65,8 +65,8 @@ export default function TaskManager() {
     miniMode, isLocked, sideTab,
     activeProject, activeProjects,
     handleLock, handleMiniMode, handleMinimize, handleMaximize, handleClose,
-    addProject, editProject, addSubtask, editSubtask, editSubtaskDesc,
-    addEvent, addEventAsSubtask, updateTaskTime, convertEventToSubtask, fetchGcalEvents,
+    addProject, editProject, addSubtask, editSubtask, editSubtaskDesc, editSubtaskTime,
+    addEvent, addEventAsSubtask, convertEventToSubtask, fetchGcalEvents,
     addRecurring, editRecurring, td, calendarRange, setCalendarRange,
     windowMode, handleWindowMode,
     agreedTerms, setAgreedTerms,
@@ -127,12 +127,12 @@ export default function TaskManager() {
           <span style={{ fontSize: 14, color: T.textSec, fontWeight: 500, marginRight: 4 }}>{td.getFullYear()}년 {td.getMonth() + 1}월 {td.getDate()}일 ({DAYS_KR[td.getDay()]})</span>
 
           {/* Google Calendar 동기화 (15초 쿨타임) */}
-          <button onClick={handleSyncClick} disabled={syncCooldown} title={syncCooldown ? "동기화 대기 중..." : "Google Calendar 동기화"} style={{ width: 34, height: 34, border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 8, cursor: syncCooldown ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textSec, transition: "all .3s", marginRight: 4, opacity: syncCooldown ? 0.35 : 1, pointerEvents: syncCooldown ? "none" : "auto" }}>
+          <button onClick={handleSyncClick} disabled={syncCooldown} title={syncCooldown ? "동기화 대기 중..." : "Google Calendar 동기화"} style={{ width: 34, height: 34, border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 8, cursor: syncCooldown ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textSec, transition: "opacity .3s", marginRight: 4, opacity: syncCooldown ? 0.35 : 1, pointerEvents: syncCooldown ? "none" : "auto" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0114.85-3.36L23 10" /><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14" /></svg>
           </button>
 
           {/* 다크/라이트 모드 토글 */}
-          <button onClick={toggleTheme} title={isDark ? "라이트 모드" : "다크 모드"} style={{ width: 34, height: 34, border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textSec, transition: "all .15s" }}>
+          <button onClick={toggleTheme} title={isDark ? "라이트 모드" : "다크 모드"} style={{ width: 34, height: 34, border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textSec, transition: "transform .15s" }}>
             {isDark ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             ) : (
@@ -149,7 +149,7 @@ export default function TaskManager() {
           </button>
           <div style={{ width: 1, height: 24, background: T.border, margin: "0 2px" }} />
           <div ref={widgetRef} style={{ position: "relative" }}>
-            <button onClick={() => setWidgetOpen(!widgetOpen)} style={{ padding: "0 12px", height: 34, border: `1px solid ${widgetOpen ? T.primary : T.border}`, background: widgetOpen ? T.primaryLight : T.cardBg, borderRadius: 8, cursor: "pointer", color: widgetOpen ? T.primary : T.textSec, fontSize: 13, fontWeight: 600, transition: "all .15s", whiteSpace: "nowrap" }}>
+            <button onClick={() => setWidgetOpen(!widgetOpen)} style={{ padding: "0 12px", height: 34, border: `1px solid ${widgetOpen ? T.primary : T.border}`, background: widgetOpen ? T.primaryLight : T.cardBg, borderRadius: 8, cursor: "pointer", color: widgetOpen ? T.primary : T.textSec, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
               위젯 모드
             </button>
             {widgetOpen && (
@@ -183,8 +183,8 @@ export default function TaskManager() {
 
       {/* MODAL */}
       {modal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setModal(null)}>
-          <div style={{ background: T.cardBg, borderRadius: 16, padding: 28, width: modal.type === "settings" ? 580 : 480, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn .2s ease", color: T.text }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onMouseDown={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
+          <div style={{ background: T.cardBg, borderRadius: 16, padding: 28, width: modal.type === "settings" ? 580 : 480, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn .2s ease", color: T.text }}>
 
             {modal.type === "alert" && (
               <div>
@@ -212,8 +212,8 @@ export default function TaskManager() {
             {modal.type === "addCalendarEvent" && (
               <CalendarEventForm
                 dateKey={modal.dateKey} dateLabel={modal.dateLabel} projects={activeProjects}
-                onAddIndependent={(name, desc, time) => { addEvent(name, desc, modal.dateKey, time); setModal(null); }}
-                onAddToProject={(projectId, name, desc, time) => { addEventAsSubtask(projectId, name, desc, modal.dateKey, time); setModal(null); }}
+                onAddIndependent={(name, desc, time, endTime) => { addEvent(name, desc, modal.dateKey, time, endTime); setModal(null); }}
+                onAddToProject={(projectId, name, desc, time, endTime) => { addEventAsSubtask(projectId, name, desc, modal.dateKey, time, endTime); setModal(null); }}
                 onCancel={() => setModal(null)} T={T}
               />
             )}
@@ -221,9 +221,9 @@ export default function TaskManager() {
             {(modal.type === "addProject" || modal.type === "editProject") && (
               <ProjectForm initial={modal.project} onSubmit={(n, d, c) => { modal.type === "addProject" ? addProject(n, d, c) : editProject(modal.project.id, n, d, c); setModal(null); }} onCancel={() => setModal(null)} T={T} />
             )}
-            {modal.type === "addSubtask" && <SubtaskForm parentId={modal.parentId} onSubmit={(n, desc) => { addSubtask(activeProject, n, modal.parentId, desc); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
-            {modal.type === "editTask" && <EditTaskForm currentName={modal.currentName} currentDesc={modal.currentDesc} onSubmit={(name, desc) => { editSubtask(modal.projectId, modal.taskId, name); editSubtaskDesc(modal.projectId, modal.taskId, desc); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
-            {modal.type === "editTaskTime" && <TaskTimeForm taskName={modal.taskName} currentTime={modal.currentTime} onSubmit={(time) => { updateTaskTime(modal.taskId, time); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "addSubtask" && <SubtaskForm parentId={modal.parentId} onSubmit={(n, desc, time, endTime) => { addSubtask(activeProject, n, modal.parentId, desc, time, endTime); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "editTask" && <EditTaskForm currentName={modal.currentName} currentDesc={modal.currentDesc} currentTime={modal.currentTime} currentEndTime={modal.currentEndTime} onSubmit={(name, desc, time, endTime) => { editSubtask(modal.projectId, modal.taskId, name); editSubtaskDesc(modal.projectId, modal.taskId, desc); editSubtaskTime(modal.projectId, modal.taskId, time, endTime); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+
             {modal.type === "addRecurring" && <RecurringForm type={modal.recurType} onSubmit={(n, dv, time, intv, sd, ed) => { addRecurring(n, modal.recurType, dv, time, intv, sd, ed); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
             {modal.type === "editRecurring" && <RecurringForm type={modal.recurring.type} initial={modal.recurring} onSubmit={(n, dv, time, intv, sd, ed) => { editRecurring(modal.recurring.id, n, dv, time, intv, sd, ed); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
 

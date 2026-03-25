@@ -80,13 +80,13 @@ export function createProjectActions({ data, updateData, setModal, activeProject
   };
 
   // ── 서브태스크 CRUD ──
-  const addSubtask = (pid, name, parentId, desc) => {
+  const addSubtask = (pid, name, parentId, desc, time, endTime) => {
     const newId = generateId();
     updateData((d) => {
       const p = d.projects.find((x) => x.id === pid);
       if (!p) return;
       const arr = parentId ? findParentArray(p.subtasks, parentId) : p.subtasks;
-      if (arr) arr.push({ id: newId, name, done: false, children: [], description: desc || "", updatedAt: Date.now() });
+      if (arr) arr.push({ id: newId, name, done: false, children: [], description: desc || "", time: time || "", endTime: endTime || "", updatedAt: Date.now() });
     });
     if (parentId) setExpanded((p) => ({ ...p, [parentId]: true }));
   };
@@ -114,6 +114,15 @@ export function createProjectActions({ data, updateData, setModal, activeProject
       if (t) { t.description = desc; t.updatedAt = Date.now(); }
     });
     gcal.update({ localId: tid, description: desc });
+  };
+
+  const editSubtaskTime = (pid, tid, time, endTime) => {
+    updateData((d) => {
+      const p = d.projects.find((x) => x.id === pid);
+      if (!p) return;
+      const t = findTaskById(p.subtasks, tid);
+      if (t) { t.time = time || ""; t.endTime = endTime || ""; t.updatedAt = Date.now(); }
+    });
   };
 
   const deleteSubtask = (pid, tid) => {
@@ -152,6 +161,6 @@ export function createProjectActions({ data, updateData, setModal, activeProject
   return {
     activeProjects, archivedProjects,
     addProject, editProject, deleteProject, archiveProject, restoreProject, reorderProjects,
-    addSubtask, editSubtask, editSubtaskDesc, deleteSubtask, reorderSubtasks,
+    addSubtask, editSubtask, editSubtaskDesc, editSubtaskTime, deleteSubtask, reorderSubtasks,
   };
 }

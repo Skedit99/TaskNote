@@ -4,6 +4,7 @@ export default function CalendarEventForm({ dateKey, dateLabel, projects, onAddI
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [time, setTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [useTime, setUseTime] = useState(false);
   const [mode, setMode] = useState("independent");
   const [selectedProject, setSelectedProject] = useState(projects[0]?.id || "");
@@ -11,8 +12,9 @@ export default function CalendarEventForm({ dateKey, dateLabel, projects, onAddI
   const handleSubmit = () => {
     if (!name.trim()) return;
     const t = useTime ? time : "";
-    if (mode === "independent") onAddIndependent(name.trim(), desc, t);
-    else if (selectedProject) onAddToProject(selectedProject, name.trim(), desc, t);
+    const et = useTime ? endTime : "";
+    if (mode === "independent") onAddIndependent(name.trim(), desc, t, et);
+    else if (selectedProject) onAddToProject(selectedProject, name.trim(), desc, t, et);
   };
 
   return (
@@ -36,7 +38,12 @@ export default function CalendarEventForm({ dateKey, dateLabel, projects, onAddI
           {useTime && <span style={{ fontSize: 12, color: T.textMut }}>지정하지 않으면 종일 일정으로 등록됩니다</span>}
         </div>
         {useTime && (
-          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ padding: "10px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text, cursor: "pointer" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input type="time" value={time} onChange={(e) => { setTime(e.target.value); if (endTime && e.target.value > endTime) setEndTime(""); }} style={{ padding: "10px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text, cursor: "pointer" }} />
+            <span style={{ fontSize: 14, color: T.textMut, fontWeight: 600 }}>~</span>
+            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} min={time} style={{ padding: "10px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text, cursor: "pointer" }} placeholder="종료" />
+            {endTime && <button onClick={() => setEndTime("")} style={{ padding: "4px 8px", border: "none", background: "transparent", cursor: "pointer", fontSize: 14, color: T.textMut }} title="종료시간 해제">✕</button>}
+          </div>
         )}
       </div>
 

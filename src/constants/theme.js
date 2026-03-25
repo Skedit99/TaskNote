@@ -3,7 +3,7 @@ export const THEMES = {
     name: "라이트", key: "light",
     primary: "#5b6cf7", accent: "#7c5cf7", primaryLight: "#eef0ff",
     bgGrad: "linear-gradient(145deg,#f5f6fa,#edeef5,#f7f5fa)", headerBg: "rgba(255,255,255,0.88)", panelBg: "rgba(255,255,255,0.94)",
-    cardBg: "#ffffff", surfaceBg: "#f8f9fc", text: "#1a1a2e", textSec: "#5a6070", textMut: "#9ca3af",
+    cardBg: "#ffffff", surfaceBg: "#f5f5f5", text: "#1a1a2e", textSec: "#5a6070", textMut: "#9ca3af",
     border: "#e8eaf0", inputBorder: "#dde0e7", calBg: "rgba(255,255,255,0.65)", progBg: "#edeef5",
     doneBg: "#d1fae5", doneText: "#059669", warnBg: "#fef3c7", warnText: "#d97706",
     winCtrlHover: "#e5e7eb", winCloseHover: "#e81123", winCloseText: "white",
