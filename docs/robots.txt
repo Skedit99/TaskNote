@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://skedit-tasknote.online/sitemap.xml
