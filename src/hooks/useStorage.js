@@ -271,9 +271,11 @@ export function useStorage() {
       }
 
       // ── 날짜 변경 정리: 어제 이전의 완료된 작업을 todayTasks에서 제거 ──
-      // 완료된 작업은 이미 completedToday[dateKey]에 기록되어 있으므로 안전하게 제거 가능
-      // 미완료 작업은 유지하여 사용자가 확인할 수 있도록 함
-      d.todayTasks = d.todayTasks.filter((t) => !t.completed);
+      // 오늘 완료된 업무는 유지, 이전 날짜 완료 업무만 제거
+      const todayCompletedIds = new Set(
+        (d.completedToday?.[key] || []).map((c) => c.taskId)
+      );
+      d.todayTasks = d.todayTasks.filter((t) => !t.completed || todayCompletedIds.has(t.taskId));
 
       // ── 오늘의 이벤트를 todayTasks에 추가 ──
       const todayEvents = d.events.filter((e) => e.date === key && !e.deleted);
