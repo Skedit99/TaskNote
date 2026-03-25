@@ -2,7 +2,7 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, nativeImage, shell } = 
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const { loginWithGoogle, logoutGoogle, getGoogleAuthStatus } = require('./google-auth');
-const { createGcalEvent, updateGcalEvent, deleteGcalEvent, deleteMultipleGcalEvents, processOfflineQueue, fetchGcalEvents, fetchHolidays, saveImportMapping } = require('./gcal-sync');
+const { createGcalEvent, updateGcalEvent, deleteGcalEvent, deleteMultipleGcalEvents, processOfflineQueue, fetchGcalEvents, fetchHolidays, saveImportMapping, cleanupStaleMapping } = require('./gcal-sync');
 const os = require('os');
 const chokidar = require('chokidar');
 
@@ -271,6 +271,15 @@ ipcMain.handle('gcal-sync-delete-multiple', async (_e, payload) => {
     return await deleteMultipleGcalEvents(app, payload);
   } catch (e) {
     console.error('gcal sync delete-multiple 실패:', e.message);
+    return null;
+  }
+});
+
+ipcMain.handle('gcal-cleanup-stale', async (_e, payload) => {
+  try {
+    return await cleanupStaleMapping(app, payload);
+  } catch (e) {
+    console.error('gcal cleanup-stale 실패:', e.message);
     return null;
   }
 });

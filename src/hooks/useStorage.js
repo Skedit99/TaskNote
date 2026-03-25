@@ -270,12 +270,8 @@ export function useStorage() {
         console.log(`[Startup] Ghost 이벤트 ${ghostIds.length}건 정리됨`);
       }
 
-      // ── 날짜 변경 정리: 어제 이전의 완료된 작업을 todayTasks에서 제거 ──
-      // 오늘 완료된 업무는 유지, 이전 날짜 완료 업무만 제거
-      const todayCompletedIds = new Set(
-        (d.completedToday?.[key] || []).map((c) => c.taskId)
-      );
-      d.todayTasks = d.todayTasks.filter((t) => !t.completed || todayCompletedIds.has(t.taskId));
+      // ── 날짜 변경 정리: 어제 이전의 완료된 작업만 제거 ──
+      d.todayTasks = d.todayTasks.filter((t) => !t.completed);
 
       // ── 오늘의 이벤트를 todayTasks에 추가 ──
       const todayEvents = d.events.filter((e) => e.date === key && !e.deleted);
@@ -289,8 +285,15 @@ export function useStorage() {
       const todayScheduled = d.scheduled[key] || [];
       for (const s of todayScheduled) {
         if (!d.todayTasks.some((t) => t.taskId === s.taskId)) {
-          // 정규화된 필드만 추출하여 비정규화 잔여 필드 유입 방지
           d.todayTasks.push({ projectId: s.projectId, taskId: s.taskId, completed: false, time: s.time || "", updatedAt: Date.now() });
+        }
+      }
+
+      // ── 오늘 완료된 업무를 completedToday에서 복원 ──
+      const todayCompleted = d.completedToday?.[key] || [];
+      for (const c of todayCompleted) {
+        if (!d.todayTasks.some((t) => t.taskId === c.taskId)) {
+          d.todayTasks.push({ projectId: c.projectId, taskId: c.taskId, completed: true, completedAt: c.completedAt || "", updatedAt: Date.now() });
         }
       }
     });

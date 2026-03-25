@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gcalSyncDelete: (payload) => ipcRenderer.invoke('gcal-sync-delete', payload),
   gcalSyncDeleteMultiple: (payload) => ipcRenderer.invoke('gcal-sync-delete-multiple', payload),
   gcalSyncFlushQueue: () => ipcRenderer.invoke('gcal-sync-flush-queue'),
+  gcalCleanupStale: (payload) => ipcRenderer.invoke('gcal-cleanup-stale', payload),
   gcalFetchEvents: (payload) => ipcRenderer.invoke('gcal-fetch-events', payload),
   gcalFetchHolidays: (payload) => ipcRenderer.invoke('gcal-fetch-holidays', payload),
   gcalSaveImportMapping: (payload) => ipcRenderer.invoke('gcal-save-import-mapping', payload),

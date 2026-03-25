@@ -535,6 +535,47 @@ async function fetchHolidays(app, { timeMin, timeMax }) {
   }
 }
 
+// ── 매핑 정리: 유효한 localId 목록에 없는 매핑의 GCal 이벤트 삭제 ──
+async function cleanupStaleMapping(app, { validLocalIds }) {
+  const client = await getAuthenticatedClient();
+  if (!client) return { deleted: 0 };
+
+  const mapping = loadMapping(app);
+  const validSet = new Set(validLocalIds);
+  const calendar = google.calendar({ version: 'v3', auth: client });
+
+  // imported 타입은 제외 (외부에서 가져온 이벤트)
+  const staleIds = Object.keys(mapping).filter(
+    (id) => !validSet.has(id) && mapping[id].type !== 'imported'
+  );
+
+  if (staleIds.length === 0) return { deleted: 0 };
+  console.log(`[GCal] 잔여 매핑 정리 시작: ${staleIds.length}건`);
+
+  let deleted = 0;
+  for (const localId of staleIds) {
+    const entry = mapping[localId];
+    if (!entry?.gcalEventId) { delete mapping[localId]; continue; }
+    try {
+      await calendar.events.delete({ calendarId: 'primary', eventId: entry.gcalEventId });
+      delete mapping[localId];
+      deleted++;
+    } catch (err) {
+      if (err.code === 404 || err.status === 404) {
+        delete mapping[localId]; // 이미 삭제됨
+        deleted++;
+      } else {
+        console.warn(`[GCal] 잔여 삭제 실패: ${localId}`, err.message);
+      }
+    }
+    await delay(300);
+  }
+
+  saveMapping(app, mapping);
+  console.log(`[GCal] 잔여 매핑 정리 완료: ${deleted}건 삭제`);
+  return { deleted };
+}
+
 module.exports = {
   createGcalEvent,
   updateGcalEvent,
@@ -545,4 +586,5 @@ module.exports = {
   fetchHolidays,
   saveImportMapping,
   loadMapping,
+  cleanupStaleMapping,
 };

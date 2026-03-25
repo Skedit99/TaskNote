@@ -340,6 +340,16 @@ const gcal = {
         if (i + 3 < batch.length) await new Promise(r => setTimeout(r, 500));
       }
       console.log(`[GCal] 일괄 동기화 완료: 성공 ${successCount}건, 건너뜀 ${skipCount}건, 실패 ${failCount}건`);
+
+      // 잔여 GCal 이벤트 정리: 유효한 localId에 없는 매핑 삭제
+      const validLocalIds = batch.map((b) => b.localId);
+      try {
+        const result = await window.electronAPI.gcalCleanupStale({ validLocalIds });
+        if (result?.deleted > 0) console.log(`[GCal] 잔여 이벤트 ${result.deleted}건 정리됨`);
+      } catch (e) {
+        console.warn("[GCal] 잔여 정리 실패:", e);
+      }
+
       gcal._initialSyncDone = true;
     };
     gcal._initialSyncPromise = processBatch();
