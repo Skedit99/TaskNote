@@ -32,6 +32,7 @@ export default function useTaskData() {
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [selectedDay, setSelectedDay] = useState(null);
+  const [holidays, setHolidays] = useState({});
 
   // 위젯 모드 관련
   const [miniMode, setMiniMode] = useState(false);
@@ -356,20 +357,58 @@ export default function useTaskData() {
     });
   }, [updateData]);
 
+  // 공휴일 가져오기 (연 단위 캐싱)
+  const holidayYearRef = useRef(null);
+  const fetchHolidays = useCallback(async (year) => {
+    if (!isElectron) return;
+    if (holidayYearRef.current === year) return;
+    try {
+      const timeMin = new Date(year, 0, 1).toISOString();
+      const timeMax = new Date(year, 11, 31, 23, 59, 59).toISOString();
+      const result = await window.electronAPI.gcalFetchHolidays({ timeMin, timeMax });
+      if (!result?.success) return;
+      const map = {};
+      for (const h of (result.holidays || [])) {
+        map[h.date] = h.name;
+      }
+      setHolidays(map);
+      holidayYearRef.current = year;
+    } catch (e) {
+      console.warn("[gcal] 공휴일 fetch 실패:", e);
+    }
+  }, []);
+
+  const getHolidayForDay = (day, year, month) => {
+    if (!day) return null;
+    const y = year !== undefined ? year : calYear;
+    const m = month !== undefined ? month : calMonth;
+    const key = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    return holidays[key] || null;
+  };
+
+  // 연도 변경 시 공휴일 갱신
+  useEffect(() => {
+    if (!loaded) return;
+    fetchHolidays(calYear);
+  }, [loaded, calYear, fetchHolidays]);
+
   // 앱 로드 시 + 월 변경 시 Google Calendar에서 가져오기
   useEffect(() => {
     if (!loaded) return;
     fetchGcalEvents();
   }, [loaded, fetchGcalEvents]);
 
-  // 3분 간격 자동 동기화 (Pull + Push 보정)
+  // 10분 간격 자동 동기화 (Pull + Push 보정)
   useEffect(() => {
     if (!loaded) return;
-    const INTERVAL = 3 * 60 * 1000;
+    const INTERVAL = 10 * 60 * 1000;
+    const MIN_SYNC_GAP = 5 * 60 * 1000; // 탭 복귀 시 최소 5분 경과해야 동기화
     let timer = null;
+    let lastSyncTime = Date.now();
 
     const syncCycle = () => {
       if (document.hidden) return;
+      lastSyncTime = Date.now();
       // Push 먼저 (매핑 완성) → Pull (중복 import 방지)
       gcal.syncExisting(dataRef.current);       // Push 보정: 누락 항목 재동기화
       gcal.flushOfflineQueue();                 // 오프라인 큐 재시도
@@ -384,8 +423,10 @@ export default function useTaskData() {
       if (timer) { clearInterval(timer); timer = null; }
     };
     const onVisibility = () => {
-      if (document.hidden) stopPolling();
-      else { syncCycle(); startPolling(); }
+      if (document.hidden) { stopPolling(); return; }
+      // 탭 복귀 시 마지막 동기화로부터 5분 이상 지났을 때만 실행
+      if (Date.now() - lastSyncTime >= MIN_SYNC_GAP) syncCycle();
+      startPolling();
     };
 
     startPolling();
@@ -444,6 +485,7 @@ export default function useTaskData() {
     // 캘린더
     getCompForDay, deleteCompleted, calDays, prevMonth, nextMonth,
     td, isTodayDate, getRecurringForDay, getTodayTasksForDay,
+    getHolidayForDay,
 
     // Electron
     handleMiniMode, handleBgOpacity, handleCardOpacity, windowMode, handleWindowMode,

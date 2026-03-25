@@ -9,7 +9,7 @@ export default function MiniCalendar({ ctx }) {
     calYear, calMonth, calPanelHeight, setCalPanelHeight,
     selectedDay, setSelectedDay, calDays, prevMonth, nextMonth,
     isTodayDate, getCompForDay, getScheduledForDay, getRecurringForDay, getTodayTasksForDay,
-    getEventsForDay,
+    getEventsForDay, getHolidayForDay,
     getColorForProjectId, completeForDate, uncompleteForDate,
     handleLock, handleMiniMode, handleBgOpacity, handleCardOpacity,
     handleMinimize, handleClose, setShowControls, handleCalendarDoubleClick,
@@ -103,6 +103,7 @@ export default function MiniCalendar({ ctx }) {
               const todayT = getTodayTasksForDay(day);
               const isSel = selectedDay === day && day !== null;
               const today = isTodayDate(day);
+              const holiday = getHolidayForDay(day);
               const _tIds = new Set(todayT.map((t) => t.taskId));
               const _cIds = new Set(comp.map((c) => c.taskId));
               const filtSched = sched.filter((s) => !_tIds.has(s.taskId) && !_cIds.has(s.taskId));
@@ -114,19 +115,20 @@ export default function MiniCalendar({ ctx }) {
                     textAlign: "center", padding: "3px 2px", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
                     cursor: day ? "pointer" : "default",
                     background: day ? (today && !isSel ? T.primaryLight : T.cardBg) : "transparent",
-                    color: i % 7 === 0 ? "#ef4444" : i % 7 === 6 ? "#3b82f6" : T.text,
+                    color: (holiday || i % 7 === 0) ? "#ef4444" : i % 7 === 6 ? "#3b82f6" : T.text,
                     fontWeight: today ? 700 : 400,
-                    border: today && !isSel ? `2px solid ${T.primary}` : isSel ? `2px solid ${T.primary}` : "2px solid transparent",
+                    border: holiday && day ? `2px solid #ef4444` : today && !isSel ? `2px solid ${T.primary}` : isSel ? `2px solid ${T.primary}` : "2px solid transparent",
                     transition: "all .1s", opacity: day ? 1 : 0, overflow: "hidden",
                   }}>
                   {day && (<>
-                    <span style={{ fontSize: 13, lineHeight: "20px", width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", background: isSel ? T.primary : "transparent", color: isSel ? "white" : undefined, fontWeight: isSel ? 700 : today ? 700 : 400, transition: "all .15s" }}>{day}</span>
+                    <span style={{ fontSize: 13, lineHeight: "20px", width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", background: isSel ? T.primary : "transparent", color: isSel ? "white" : holiday ? "#ef4444" : undefined, fontWeight: isSel ? 700 : today ? 700 : 400, transition: "all .15s" }}>{day}</span>
                     {cnt > 0 && <div style={{ display: "flex", gap: 2, marginTop: 1, justifyContent: "center", flexWrap: "wrap" }}>
                       {todayT.length > 0 && <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.warnText }} />}
                       {filtSched.length > 0 && <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.accent }} />}
                       {comp.length > 0 && <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.doneText }} />}
                       {recur.length > 0 && <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.primary }} />}
                     </div>}
+                    {holiday && <div style={{ fontSize: 9, color: "#ef4444", fontWeight: 700, lineHeight: "12px", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{holiday}</div>}
                   </>)}
                 </div>
               );
@@ -209,7 +211,7 @@ export default function MiniCalendar({ ctx }) {
                   {visibleComp.map((c, ci) => {
                     const pc = getColorForProjectId(c.projectId);
                     return (
-                      <div key={"d" + ci} style={{ fontSize: 13, padding: "5px 8px", borderRadius: 6, background: T.doneBg, border: `1px solid ${T.doneBg}`, borderLeft: `3px solid ${pc.color}88`, marginBottom: 3, display: "flex", alignItems: "center", gap: 6, opacity: cardOpacity, transition: "opacity .2s", cursor: "pointer" }} onClick={() => uncompleteForDate(dateKey, c.taskId)}>
+                      <div key={"d" + ci} style={{ fontSize: 13, padding: "5px 8px", borderRadius: 6, background: T.cardBg, border: `1px solid ${T.border}`, borderLeft: `3px solid ${pc.color}88`, marginBottom: 3, display: "flex", alignItems: "center", gap: 6, opacity: cardOpacity * 0.7, transition: "opacity .2s", cursor: "pointer" }} onClick={() => uncompleteForDate(dateKey, c.taskId)}>
                         <div style={{ width: 16, height: 16, borderRadius: 5, background: "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
                         </div>

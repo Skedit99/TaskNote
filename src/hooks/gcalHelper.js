@@ -205,10 +205,12 @@ const gcal = {
       if (t.completed) completedTaskIds.add(t.taskId);
     }
 
-    // 독립 일정
+    // 독립 일정 (완료 시 "(완료)" 접두사)
     for (const ev of (appData.events || [])) {
       if (ev.deleted) continue;
-      batch.push({ localId: ev.id, summary: ev.name, description: ev.description || "", date: ev.date, time: ev.time || "", type: "event" });
+      const isCompleted = completedTaskIds.has(ev.id);
+      const summary = isCompleted ? `(완료) ${ev.name}` : ev.name;
+      batch.push({ localId: ev.id, summary, description: ev.description || "", date: ev.date, time: ev.time || "", type: "event" });
     }
 
     // 예약된 업무 (완료 시 "(완료)" 접두사)
@@ -223,13 +225,14 @@ const gcal = {
       }
     }
 
-    // completedToday에만 있고 scheduled에 없는 완료 항목
+    // completedToday에만 있고 scheduled에 없는 완료 항목 (프로젝트 업무만)
+    // recurring은 정기업무 전개 루프에서, event는 독립일정 루프에서 각각 처리됨
     for (const [dateKey, items] of Object.entries(appData.completedToday || {})) {
       for (const c of items) {
         if (scheduledTaskIds.has(c.taskId)) continue;
+        if (c.projectId === "recurring" || c.projectId === "event") continue;
         const info = getTaskInfo(c.projectId, c.taskId);
-        const type = c.projectId === "event" ? "event" : "scheduled";
-        batch.push({ localId: c.taskId, summary: `(완료) ${info.name}`, description: info.desc, date: dateKey, time: c.time || "", type });
+        batch.push({ localId: c.taskId, summary: `(완료) ${info.name}`, description: info.desc, date: dateKey, time: c.time || "", type: "scheduled" });
       }
     }
 
@@ -244,12 +247,25 @@ const gcal = {
       batch.push({ localId: t.taskId, summary, description: info.desc, date: todayStr, time: t.time || "", type: "scheduled" });
     }
 
-    // 정기 업무 전개
+    // 날짜별 정기업무 완료 여부 조회용 맵 (dateKey → Set of taskId)
+    const completedByDate = new Map();
+    for (const [dk, items] of Object.entries(appData.completedToday || {})) {
+      const ids = new Set(items.filter((c) => c.projectId === "recurring").map((c) => c.taskId));
+      if (ids.size > 0) completedByDate.set(dk, ids);
+    }
+
+    // 정기 업무 전개 (완료 시 "(완료)" 접두사, skip/add 반영)
+    const skips = appData.recurringSkips || {};
+    const adds = appData.recurringAdds || {};
+
     for (const r of (appData.recurring || [])) {
       if (!r.active) continue;
       const limit = r.endDate ? new Date(r.endDate + "T23:59:59") : maxDate;
       const startFrom = r.startDate ? new Date(r.startDate) : today;
       const cursor = new Date(Math.max(today.getTime(), startFrom.getTime()));
+
+      // 이 정기업무가 정규 스케줄로 나타나는 날짜 수집
+      const regularDates = new Set();
 
       if (r.type === "weekly") {
         while (cursor.getDay() !== r.dayValue && cursor <= limit) cursor.setDate(cursor.getDate() + 1);
@@ -264,7 +280,7 @@ const gcal = {
         }
         while (cursor <= limit) {
           const dateKey = `${cursor.getFullYear()}-${pad(cursor.getMonth() + 1)}-${pad(cursor.getDate())}`;
-          batch.push({ localId: `recurring:${r.id}:${dateKey}`, summary: r.name, description: "", date: dateKey, time: r.time || "", type: "recurring" });
+          regularDates.add(dateKey);
           cursor.setDate(cursor.getDate() + (interval * 7));
         }
       } else if (r.type === "monthly") {
@@ -275,11 +291,32 @@ const gcal = {
             const d = new Date(cursor.getFullYear(), cursor.getMonth(), r.dayValue);
             if (d >= today && d <= limit) {
               const dateKey = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-              batch.push({ localId: `recurring:${r.id}:${dateKey}`, summary: r.name, description: "", date: dateKey, time: r.time || "", type: "recurring" });
+              regularDates.add(dateKey);
             }
           }
           cursor.setMonth(cursor.getMonth() + 1);
         }
+      }
+
+      // skip된 날짜 제거
+      for (const dateKey of regularDates) {
+        if ((skips[dateKey] || []).includes(r.id)) regularDates.delete(dateKey);
+      }
+
+      // 수동 추가(adds)된 날짜 포함
+      for (const [dateKey, addIds] of Object.entries(adds)) {
+        if (addIds.includes(r.id) && !regularDates.has(dateKey)) {
+          // 범위 내인지 체크
+          const d = new Date(dateKey);
+          if (d >= today && d <= maxDate) regularDates.add(dateKey);
+        }
+      }
+
+      // batch에 추가
+      for (const dateKey of regularDates) {
+        const isDone = completedByDate.get(dateKey)?.has(r.id);
+        const summary = isDone ? `(완료) ${r.name}` : r.name;
+        batch.push({ localId: `recurring:${r.id}:${dateKey}`, summary, description: "", date: dateKey, time: r.time || "", type: "recurring" });
       }
     }
 

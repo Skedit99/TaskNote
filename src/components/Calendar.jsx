@@ -9,7 +9,7 @@ export default function Calendar({ ctx }) {
     activeProjects, setModal,
     getColorForProjectId, completeForDate, uncompleteForDate,
     removeFromToday, deleteScheduled, skipRecurringForDate, handleCalendarDoubleClick,
-    calendarRange,
+    calendarRange, getHolidayForDay,
   } = ctx;
 
   const CheckBox = ({ done, onClick }) => (
@@ -105,7 +105,7 @@ export default function Calendar({ ctx }) {
         {visibleComp.length > 0 && <div style={{ marginBottom: 14 }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: T.doneText, marginBottom: 8 }}>✓ 완료한 일</p>
           {visibleComp.map((t, i) => { const pc = getColorForProjectId(t.projectId); return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: T.doneBg + "44", border: `1px solid ${T.doneBg}`, borderLeft: `4px solid ${pc.color}88`, marginBottom: 6, cursor: "pointer", opacity: 0.7 }} onClick={() => uncompleteForDate(dateKey, t.taskId)}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: T.cardBg, border: `1px solid ${T.border}`, borderLeft: `4px solid ${pc.color}88`, marginBottom: 6, cursor: "pointer", opacity: 0.55 }} onClick={() => uncompleteForDate(dateKey, t.taskId)}>
               <CheckBox done={true} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 15, fontWeight: 600, textDecoration: "line-through", color: T.textMut }}>{t.taskName}</p><p style={{ fontSize: 13, color: T.textMut }}>{t.projectName}</p></div>
               {t.completedAt && <span style={{ fontSize: 12, color: T.textMut, flexShrink: 0, marginLeft: 8 }}>{new Date(t.completedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })}</span>}
             </div>); })}
@@ -133,6 +133,7 @@ export default function Calendar({ ctx }) {
           const events = getEventsForDay(day);
           const isSel = selectedDay === day && day !== null;
           const today = isTodayDate(day);
+          const holiday = getHolidayForDay(day);
           const todayIds = new Set(todayTasks.map((t) => t.taskId));
           const compIds = new Set(comp.map((c) => c.taskId));
           const filteredSched = sched.filter((s) => !todayIds.has(s.taskId) && !compIds.has(s.taskId));
@@ -153,12 +154,12 @@ export default function Calendar({ ctx }) {
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
                 transition: "all .12s", overflow: "hidden",
                 background: today && !isSel ? T.primaryLight : "transparent",
-                color: i % 7 === 0 ? "#ef4444" : i % 7 === 6 ? "#3b82f6" : T.text,
+                color: (holiday || i % 7 === 0) ? "#ef4444" : i % 7 === 6 ? "#3b82f6" : T.text,
                 cursor: day ? "pointer" : "default", fontWeight: today ? 700 : 400,
-                border: today && !isSel ? `2px solid ${T.primary}` : isSel ? `2px solid ${T.primary}` : "2px solid transparent",
+                border: holiday && day ? `2px solid #ef4444` : today && !isSel ? `2px solid ${T.primary}` : isSel ? `2px solid ${T.primary}` : "2px solid transparent",
               }}>
               {day && (<>
-                <span style={{ fontSize: 14, lineHeight: "22px", width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: isSel ? T.primary : "transparent", color: isSel ? "white" : undefined, fontWeight: isSel ? 700 : today ? 700 : 400, transition: "all .15s" }}>{day}</span>
+                <span style={{ fontSize: 14, lineHeight: "22px", width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: isSel ? T.primary : "transparent", color: isSel ? "white" : holiday ? "#ef4444" : undefined, fontWeight: isSel ? 700 : today ? 700 : 400, transition: "all .15s" }}>{day}</span>
                 <div style={{ marginTop: 3, width: "100%", display: "flex", flexDirection: "column", gap: 2 }}>
                   {allItems.slice(0, 3).map((item, ci) => {
                     const pc = (item.pid && item.pid !== "recurring" && item.pid !== "event") ? getColorForProjectId(item.pid) : null;
@@ -166,14 +167,15 @@ export default function Calendar({ ctx }) {
                     const isRecur = item.type === "recur";
                     let bg, clr;
                     const isEvent = item.type === "event";
-                    if (pc) { bg = isDone ? pc.light + "99" : pc.light; clr = isDone ? pc.color + "99" : pc.color; }
+                    if (pc) { bg = pc.light; clr = isDone ? pc.color + "99" : pc.color; }
                     else if (isRecur) { bg = T.primaryLight; clr = T.primary; }
                     else if (isEvent) { bg = T.accent + "22"; clr = T.accent; }
-                    else { bg = isDone ? T.doneBg : T.warnBg; clr = isDone ? T.doneText : T.warnText; }
+                    else { bg = isDone ? T.warnBg : T.warnBg; clr = isDone ? T.warnText : T.warnText; }
                     const prefix = isDone ? "✓ " : isRecur ? "↻ " : isEvent ? "★ " : item.type === "sched" ? "◇ " : "● ";
                     return <div key={ci} style={{ fontSize: 11, padding: "2px 4px", borderRadius: 4, background: bg, color: clr, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "16px", fontWeight: 600 }}>{prefix}{item.name}</div>;
                   })}
                   {allItems.length > 3 && <span style={{ fontSize: 10, color: T.textMut }}>+{allItems.length - 3}</span>}
+                  {holiday && <div style={{ fontSize: 10, padding: "1px 3px", borderRadius: 3, color: "#ef4444", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "14px" }}>{holiday}</div>}
                 </div>
               </>)}
             </div>

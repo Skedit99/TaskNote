@@ -77,7 +77,8 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
     if (todayEntry) {
       const name = getTaskName(data, todayEntry.projectId, tid);
       if (name) {
-        gcal.update({ localId: tid, summary: !wasCompleted ? `(완료) ${name}` : name });
+        const localId = todayEntry.projectId === "recurring" ? `recurring:${tid}:${todayKey()}` : tid;
+        gcal.update({ localId, summary: !wasCompleted ? `(완료) ${name}` : name });
       }
     }
   };
@@ -121,7 +122,10 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
         if (p) { const st = findTaskById(p.subtasks, item.taskId); if (st) { st.done = true; st.updatedAt = Date.now(); } }
       }
       const tt = d.todayTasks.find((x) => x.taskId === item.taskId);
-      if (tt) { tt.completed = true; tt.updatedAt = Date.now(); }
+      if (tt) { tt.completed = true; tt.completedAt = new Date().toISOString(); tt.updatedAt = Date.now(); }
+      else if (dateKey === todayKey()) {
+        d.todayTasks.push({ projectId: item.projectId, taskId: item.taskId, completed: true, completedAt: new Date().toISOString(), updatedAt: Date.now() });
+      }
       // 완료 시 모든 날짜의 scheduled에서 제거 (task.done = true이므로)
       if (d.scheduled) {
         for (const [dk, items] of Object.entries(d.scheduled)) {
@@ -143,7 +147,10 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
     // GCal 이벤트 이름에 "(완료)" 추가
     if (item.projectId) {
       const name = getTaskName(data, item.projectId, item.taskId);
-      if (name) gcal.update({ localId: item.taskId, summary: `(완료) ${name}` });
+      if (name) {
+        const localId = item.projectId === "recurring" ? `recurring:${item.taskId}:${dateKey}` : item.taskId;
+        gcal.update({ localId, summary: `(완료) ${name}` });
+      }
     }
   };
 
@@ -162,7 +169,10 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
         if (st) { st.done = false; st.updatedAt = Date.now(); break; }
       }
       const tt = d.todayTasks.find((x) => x.taskId === taskId);
-      if (tt) { tt.completed = false; tt.updatedAt = Date.now(); }
+      if (tt) { tt.completed = false; delete tt.completedAt; tt.updatedAt = Date.now(); }
+      else if (dateKey === todayKey() && comp) {
+        d.todayTasks.push({ projectId: comp.projectId, taskId, completed: false, updatedAt: Date.now() });
+      }
       if (comp && comp.projectId && comp.projectId !== "recurring" && comp.projectId !== "event") {
         if (!d.scheduled) d.scheduled = {};
         if (!d.scheduled[dateKey]) d.scheduled[dateKey] = [];
@@ -175,7 +185,10 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
     // GCal 이벤트 이름에서 "(완료)" 제거
     if (compEntry && compEntry.projectId) {
       const name = getTaskName(data, compEntry.projectId, taskId);
-      if (name) gcal.update({ localId: taskId, summary: name });
+      if (name) {
+        const localId = compEntry.projectId === "recurring" ? `recurring:${taskId}:${dateKey}` : taskId;
+        gcal.update({ localId, summary: name });
+      }
     }
   };
 
@@ -193,6 +206,10 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
       if (!d.scheduled[dateKey]) d.scheduled[dateKey] = [];
       if (d.scheduled[dateKey].some((s) => s.taskId === tid)) return;
       d.scheduled[dateKey].push({ projectId: pid, taskId: tid, updatedAt: Date.now() });
+      // 오늘 날짜면 todayTasks에도 추가
+      if (dateKey === todayKey() && !d.todayTasks.some((t) => t.taskId === tid)) {
+        d.todayTasks.push({ projectId: pid, taskId: tid, completed: false, updatedAt: Date.now() });
+      }
     });
     gcal.create({ localId: tid, summary: task.name, description: task.description || "", date: dateKey, time: task.time || "", type: "scheduled" });
   };

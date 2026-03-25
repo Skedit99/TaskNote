@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskNote - 스마트 일정관리 데스크톱 앱</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; color: #1a1a1a; line-height: 1.7; }
+    .container { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+    h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+    .subtitle { font-size: 16px; color: #666; margin-bottom: 40px; }
+    h2 { font-size: 20px; font-weight: 700; margin: 36px 0 12px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
+    h2:first-of-type { border-top: none; padding-top: 0; }
+    p { margin-bottom: 12px; font-size: 15px; }
+    ul { margin: 8px 0 16px 20px; }
+    li { margin-bottom: 6px; font-size: 15px; }
+    .download-btn {
+      display: inline-block;
+      background: #E8843C;
+      color: #fff;
+      padding: 14px 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 16px;
+      font-weight: 700;
+      margin: 20px 0;
+      transition: opacity 0.2s;
+    }
+    .download-btn:hover { opacity: 0.85; }
+    .tech { display: inline-block; background: #e9ecef; padding: 4px 10px; border-radius: 4px; font-size: 13px; margin: 2px 4px 2px 0; }
+    .links { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
+    .links a { color: #E8843C; text-decoration: none; margin-right: 20px; font-size: 14px; }
+    .links a:hover { text-decoration: underline; }
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; font-size: 13px; color: #999; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>TaskNote</h1>
+    <p class="subtitle">프로젝트 업무, 독립 일정, 정기 업무를 한눈에 관리하는 Windows 데스크톱 앱</p>
+
+    <a href="https://github.com/Skedit99/TaskNote/releases/latest" class="download-btn">다운로드 (Windows)</a>
+
+    <h2>주요 기능</h2>
+
+    <p><strong>프로젝트 관리</strong></p>
+    <ul>
+      <li>프로젝트별 세부 업무를 트리 구조로 관리</li>
+      <li>색상 태그로 프로젝트 구분</li>
+      <li>드래그 앤 드롭으로 업무 순서 변경</li>
+    </ul>
+
+    <p><strong>캘린더</strong></p>
+    <ul>
+      <li>월간 캘린더에서 업무 일정을 한눈에 확인</li>
+      <li>날짜별 업무 예약 및 관리</li>
+      <li>공휴일 자동 표시</li>
+    </ul>
+
+    <p><strong>오늘 할 일</strong></p>
+    <ul>
+      <li>오늘의 업무를 우선순위로 정리</li>
+      <li>완료 체크 및 진행률 확인</li>
+      <li>위젯 모드로 바탕화면에서 바로 확인</li>
+    </ul>
+
+    <p><strong>정기 업무</strong></p>
+    <ul>
+      <li>매주/매월 반복되는 업무 자동 등록</li>
+      <li>격주, 특정 요일 등 다양한 반복 패턴 지원</li>
+      <li>시작일/종료일 설정</li>
+    </ul>
+
+    <p><strong>Google 캘린더 연동</strong></p>
+    <ul>
+      <li>양방향 실시간 동기화</li>
+      <li>앱에서 추가한 업무가 Google 캘린더에 자동 반영</li>
+      <li>Google 캘린더에서 추가한 일정도 앱에 자동 등록</li>
+    </ul>
+
+    <p><strong>위젯 모드</strong></p>
+    <ul>
+      <li>컴팩트한 위젯으로 바탕화면에 고정</li>
+      <li>오늘 할 일 목록과 진행률 표시</li>
+      <li>항상 위 모드 지원</li>
+    </ul>
+
+    <h2>기술 스택</h2>
+    <p>
+      <span class="tech">Electron</span>
+      <span class="tech">React</span>
+      <span class="tech">Google Calendar API</span>
+      <span class="tech">Immer</span>
+    </p>
+
+    <div class="links">
+      <a href="https://github.com/Skedit99/TaskNote">GitHub</a>
+      <a href="privacy-policy.html">개인정보처리방침</a>
+      <a href="terms-of-service.html">서비스 이용약관</a>
+    </div>
+
+    <div class="footer">
+      <p>&copy; 2026 Skedit99. All rights reserved.</p>
+      <p>kimyk85652@gmail.com</p>
+    </div>
+  </div>
+</body>
+</html>

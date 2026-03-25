@@ -503,6 +503,35 @@ async function saveImportMapping(app, localId, gcalEventId, date) {
   }
 }
 
+// ── FETCH: 공휴일 캘린더 ──
+async function fetchHolidays(app, { timeMin, timeMax }) {
+  const client = await getAuthenticatedClient();
+  if (!client) return { success: false, holidays: [], error: 'not_connected' };
+
+  const calendar = google.calendar({ version: 'v3', auth: client });
+
+  try {
+    const res = await withRetry(() => calendar.events.list({
+      calendarId: 'ko.south_korea#holiday@group.v.calendar.google.com',
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 100,
+    }));
+
+    const holidays = (res.data.items || [])
+      .filter((ev) => ev.status !== 'cancelled' && ev.start?.date)
+      .map((ev) => ({ name: ev.summary || '', date: ev.start.date }));
+
+    console.log(`[GCal] 공휴일 ${holidays.length}건 로드`);
+    return { success: true, holidays };
+  } catch (err) {
+    console.error('[GCal] 공휴일 fetch 실패:', err.message);
+    return { success: false, holidays: [], error: err.message };
+  }
+}
+
 module.exports = {
   createGcalEvent,
   updateGcalEvent,
@@ -510,6 +539,7 @@ module.exports = {
   deleteMultipleGcalEvents,
   processOfflineQueue,
   fetchGcalEvents,
+  fetchHolidays,
   saveImportMapping,
   loadMapping,
 };

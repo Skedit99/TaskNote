@@ -2,7 +2,7 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, nativeImage, shell } = 
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const { loginWithGoogle, logoutGoogle, getGoogleAuthStatus } = require('./google-auth');
-const { createGcalEvent, updateGcalEvent, deleteGcalEvent, deleteMultipleGcalEvents, processOfflineQueue, fetchGcalEvents, saveImportMapping } = require('./gcal-sync');
+const { createGcalEvent, updateGcalEvent, deleteGcalEvent, deleteMultipleGcalEvents, processOfflineQueue, fetchGcalEvents, fetchHolidays, saveImportMapping } = require('./gcal-sync');
 const os = require('os');
 const chokidar = require('chokidar');
 
@@ -290,6 +290,15 @@ ipcMain.handle('gcal-fetch-events', async (_e, payload) => {
   } catch (e) {
     console.error('gcal fetch-events 실패:', e.message);
     return { success: false, events: [], error: e.message };
+  }
+});
+
+ipcMain.handle('gcal-fetch-holidays', async (_e, payload) => {
+  try {
+    return await fetchHolidays(app, payload);
+  } catch (e) {
+    console.error('gcal fetch-holidays 실패:', e.message);
+    return { success: false, holidays: [], error: e.message };
   }
 });
 
