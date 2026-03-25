@@ -50,6 +50,6 @@
 
 ## 개발 방식
 
-코드 작성은 [Claude Code](https://claude.ai/claude-code)와 [Gemini](https://gemini.google.com)의 도움을 받았음을 알립니다.
+[Claude Code](https://claude.ai/claude-code)와 [Gemini](https://gemini.google.com)와 함께 개발되었음을 알립니다.
 
 Made by [Skedit99](https://github.com/Skedit99)
