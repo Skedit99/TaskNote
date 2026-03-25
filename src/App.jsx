@@ -28,12 +28,12 @@ function TermsAgreement({ onAgree }) {
         <p style={{ fontSize: 14, color: "#888", marginBottom: 28 }}>서비스 이용을 위해 약관에 동의해 주세요</p>
 
         <div style={{ textAlign: "left", marginBottom: 20 }}>
-          <a href="https://synonymous-narwhal-502.notion.site/TaskNote-Privacy-Policy-32ad41d108b580a09560fe28ab5f768d" target="_blank" rel="noopener noreferrer"
+          <a href="https://skedit-tasknote.online/privacy-policy.html" target="_blank" rel="noopener noreferrer"
             style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "#f8f9fa", borderRadius: 12, marginBottom: 8, textDecoration: "none", color: "#1a1a1a", fontSize: 14, fontWeight: 600, border: "1px solid #e5e5e5", cursor: "pointer" }}>
             📄 개인정보처리방침 (Privacy Policy)
             <span style={{ fontSize: 12, color: "#999" }}>보기 →</span>
           </a>
-          <a href="https://synonymous-narwhal-502.notion.site/TaskNote-Terms-of-Service-32ad41d108b5800a8678c8e83a13d0cb" target="_blank" rel="noopener noreferrer"
+          <a href="https://skedit-tasknote.online/terms-of-service.html" target="_blank" rel="noopener noreferrer"
             style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "#f8f9fa", borderRadius: 12, textDecoration: "none", color: "#1a1a1a", fontSize: 14, fontWeight: 600, border: "1px solid #e5e5e5", cursor: "pointer" }}>
             📋 서비스 이용약관 (Terms of Service)
             <span style={{ fontSize: 12, color: "#999" }}>보기 →</span>

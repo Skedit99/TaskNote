@@ -213,7 +213,7 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
               <p style={{ margin: "0 0 4px" }}>• Google 캘린더 읽기/쓰기 권한을 요청합니다</p>
               <p style={{ margin: "0 0 4px" }}>• 인증 정보는 이 PC에만 안전하게 저장됩니다</p>
               <p style={{ margin: "0 0 4px" }}>• 언제든 연결을 해제할 수 있습니다</p>
-              <p style={{ margin: 0 }}>• <a href="https://skedit99.github.io/tasknote/privacy-policy.html" target="_blank" rel="noopener noreferrer" style={{ color: T.primary }}>개인정보처리방침</a>에서 자세한 내용을 확인하세요</p>
+              <p style={{ margin: 0 }}>• <a href="https://skedit-tasknote.online/privacy-policy.html" target="_blank" rel="noopener noreferrer" style={{ color: T.primary }}>개인정보처리방침</a>에서 자세한 내용을 확인하세요</p>
             </div>
           </div>
           {!isElectron && <p style={{ fontSize: 13, color: T.warnText, marginTop: 12, padding: "8px 12px", background: T.warnBg, borderRadius: 8 }}>이 기능은 데스크탑 앱에서만 사용할 수 있습니다</p>}
@@ -307,7 +307,7 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
           <div style={{ padding: "20px", background: T.surfaceBg, borderRadius: 12, border: `1px solid ${T.border}` }}>
             <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 12px", color: T.text }}>법적 고지</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <a href="https://skedit99.github.io/tasknote/privacy-policy.html" target="_blank" rel="noopener noreferrer"
+              <a href="https://skedit-tasknote.online/privacy-policy.html" target="_blank" rel="noopener noreferrer"
                 style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: T.cardBg, borderRadius: 10, border: `1px solid ${T.border}`, textDecoration: "none", color: T.text, cursor: "pointer", transition: "all .15s" }}>
                 <span style={{ fontSize: 18 }}>🔒</span>
                 <div style={{ flex: 1 }}>
@@ -316,7 +316,7 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
                 </div>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMut} strokeWidth="2" strokeLinecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
               </a>
-              <a href="https://skedit99.github.io/tasknote/terms-of-service.html" target="_blank" rel="noopener noreferrer"
+              <a href="https://skedit-tasknote.online/terms-of-service.html" target="_blank" rel="noopener noreferrer"
                 style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: T.cardBg, borderRadius: 10, border: `1px solid ${T.border}`, textDecoration: "none", color: T.text, cursor: "pointer", transition: "all .15s" }}>
                 <span style={{ fontSize: 18 }}>📋</span>
                 <div style={{ flex: 1 }}>
