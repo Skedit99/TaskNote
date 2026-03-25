@@ -4,106 +4,241 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TaskNote - 스마트 일정관리 데스크톱 앱</title>
+  <meta name="description" content="프로젝트 업무, 독립 일정, 정기 업무를 한눈에 관리하는 Windows 데스크톱 앱. Google 캘린더 양방향 동기화 지원.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; color: #1a1a1a; line-height: 1.7; }
-    .container { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
-    h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
-    .subtitle { font-size: 16px; color: #666; margin-bottom: 40px; }
-    h2 { font-size: 20px; font-weight: 700; margin: 36px 0 12px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
-    h2:first-of-type { border-top: none; padding-top: 0; }
-    p { margin-bottom: 12px; font-size: 15px; }
-    ul { margin: 8px 0 16px 20px; }
-    li { margin-bottom: 6px; font-size: 15px; }
-    .download-btn {
-      display: inline-block;
-      background: #E8843C;
-      color: #fff;
-      padding: 14px 32px;
-      border-radius: 8px;
-      text-decoration: none;
-      font-size: 16px;
-      font-weight: 700;
-      margin: 20px 0;
-      transition: opacity 0.2s;
+    body { font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif; background: #0f0f14; color: #e8e8ec; line-height: 1.7; overflow-x: hidden; }
+
+    /* 히어로 */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 60px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      position: relative; overflow: hidden;
     }
-    .download-btn:hover { opacity: 0.85; }
-    .tech { display: inline-block; background: #e9ecef; padding: 4px 10px; border-radius: 4px; font-size: 13px; margin: 2px 4px 2px 0; }
-    .links { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
-    .links a { color: #E8843C; text-decoration: none; margin-right: 20px; font-size: 14px; }
-    .links a:hover { text-decoration: underline; }
-    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; font-size: 13px; color: #999; }
+    .hero::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 80%, rgba(255,255,255,0.05) 0%, transparent 40%);
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 700px; }
+    .hero-icon { width: 80px; height: 80px; border-radius: 20px; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .hero h1 { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 12px; color: #fff; }
+    .hero .tagline { font-size: 18px; color: rgba(255,255,255,0.85); margin-bottom: 40px; line-height: 1.6; }
+    .hero-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 16px 36px; background: #fff; color: #667eea;
+      border-radius: 12px; text-decoration: none; font-size: 16px; font-weight: 700;
+      transition: all 0.2s; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 16px 36px; background: rgba(255,255,255,0.15); color: #fff;
+      border-radius: 12px; text-decoration: none; font-size: 16px; font-weight: 700;
+      transition: all 0.2s; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.2);
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.25); }
+    .scroll-hint {
+      position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.5); font-size: 13px; animation: bounce 2s infinite;
+    }
+    @keyframes bounce { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(8px)} }
+
+    /* 기능 섹션 */
+    .section { padding: 100px 24px; max-width: 1000px; margin: 0 auto; }
+    .section-title {
+      font-size: 36px; font-weight: 800; text-align: center; margin-bottom: 16px;
+      background: linear-gradient(135deg, #667eea, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .section-desc { text-align: center; color: #888; font-size: 16px; margin-bottom: 60px; }
+
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+    .feature-card {
+      background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 16px;
+      padding: 32px 28px; transition: all 0.3s;
+    }
+    .feature-card:hover { border-color: #667eea44; transform: translateY(-4px); box-shadow: 0 12px 40px rgba(102,126,234,0.1); }
+    .feature-icon { font-size: 32px; margin-bottom: 16px; display: block; }
+    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #f0f0f4; }
+    .feature-card p { font-size: 14px; color: #888; line-height: 1.7; }
+
+    /* 하이라이트 */
+    .highlights {
+      padding: 80px 24px; background: #14141c;
+    }
+    .highlights-inner { max-width: 1000px; margin: 0 auto; }
+    .highlight-row {
+      display: flex; align-items: center; gap: 60px; margin-bottom: 80px;
+    }
+    .highlight-row:nth-child(even) { flex-direction: row-reverse; }
+    .highlight-text { flex: 1; }
+    .highlight-text h3 { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+    .highlight-text p { font-size: 15px; color: #999; line-height: 1.8; }
+    .highlight-visual {
+      flex: 1; height: 240px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
+      font-size: 64px;
+    }
+    .hl-gcal { background: linear-gradient(135deg, #4285f420, #34a85320); border: 1px solid #4285f433; }
+    .hl-widget { background: linear-gradient(135deg, #667eea20, #764ba220); border: 1px solid #667eea33; }
+    .hl-recurring { background: linear-gradient(135deg, #E8843C20, #f5a62320); border: 1px solid #E8843C33; }
+
+    /* CTA */
+    .cta {
+      text-align: center; padding: 100px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .cta h2 { font-size: 32px; font-weight: 800; color: #fff; margin-bottom: 12px; }
+    .cta p { color: rgba(255,255,255,0.8); font-size: 16px; margin-bottom: 32px; }
+
+    /* 푸터 */
+    .footer {
+      padding: 40px 24px; text-align: center; background: #0a0a10;
+      border-top: 1px solid #1a1a2a;
+    }
+    .footer-links { display: flex; justify-content: center; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
+    .footer-links a { color: #888; text-decoration: none; font-size: 14px; transition: color 0.2s; }
+    .footer-links a:hover { color: #667eea; }
+    .footer-copy { font-size: 13px; color: #555; }
+
+    /* 반응형 */
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 32px; }
+      .hero .tagline { font-size: 16px; }
+      .section-title { font-size: 28px; }
+      .highlight-row, .highlight-row:nth-child(even) { flex-direction: column; gap: 24px; }
+      .highlight-visual { width: 100%; height: 180px; }
+    }
+
+    /* 스크롤 애니메이션 */
+    .fade-in { opacity: 0; transform: translateY(30px); transition: all 0.6s ease-out; }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>TaskNote</h1>
-    <p class="subtitle">프로젝트 업무, 독립 일정, 정기 업무를 한눈에 관리하는 Windows 데스크톱 앱</p>
 
-    <a href="https://github.com/Skedit99/TaskNote/releases/latest" class="download-btn">다운로드 (Windows)</a>
+  <!-- 히어로 -->
+  <section class="hero">
+    <div class="hero-content">
+      <img src="https://raw.githubusercontent.com/Skedit99/TaskNote/main/build/TaskNote-icon.png" alt="TaskNote" class="hero-icon">
+      <h1>TaskNote</h1>
+      <p class="tagline">프로젝트 업무, 독립 일정, 정기 업무를<br>하나의 캘린더에서 한눈에 관리하세요</p>
+      <div class="hero-buttons">
+        <a href="https://github.com/Skedit99/TaskNote/releases/latest" class="btn-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          다운로드 (Windows)
+        </a>
+        <a href="https://github.com/Skedit99/TaskNote" class="btn-secondary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+    <div class="scroll-hint">아래로 스크롤하여 더 알아보기</div>
+  </section>
 
-    <h2>주요 기능</h2>
+  <!-- 주요 기능 -->
+  <section class="section">
+    <h2 class="section-title fade-in">주요 기능</h2>
+    <p class="section-desc fade-in">업무 관리에 필요한 모든 것을 하나의 앱에서</p>
 
-    <p><strong>프로젝트 관리</strong></p>
-    <ul>
-      <li>프로젝트별 세부 업무를 트리 구조로 관리</li>
-      <li>색상 태그로 프로젝트 구분</li>
-      <li>드래그 앤 드롭으로 업무 순서 변경</li>
-    </ul>
+    <div class="features">
+      <div class="feature-card fade-in">
+        <span class="feature-icon">&#x1F4CB;</span>
+        <h3>프로젝트 관리</h3>
+        <p>프로젝트별 세부 업무를 트리 구조로 관리하고, 색상 태그로 한눈에 구분하세요. 드래그 앤 드롭으로 순서도 자유롭게.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">&#x1F4C5;</span>
+        <h3>캘린더</h3>
+        <p>월간 캘린더에서 모든 업무 일정을 확인하고, 날짜별로 업무를 예약하세요. 공휴일도 자동으로 표시됩니다.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">&#x2705;</span>
+        <h3>오늘 할 일</h3>
+        <p>오늘의 업무를 우선순위로 정리하고, 완료 체크와 진행률을 실시간으로 확인하세요.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">&#x1F504;</span>
+        <h3>정기 업무</h3>
+        <p>매주, 매월, 격주 등 반복되는 업무를 자동으로 등록. 시작일과 종료일도 설정 가능합니다.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">&#x1F310;</span>
+        <h3>Google 캘린더 연동</h3>
+        <p>양방향 실시간 동기화로 앱과 Google 캘린더가 항상 최신 상태를 유지합니다.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">&#x1F5A5;</span>
+        <h3>위젯 모드</h3>
+        <p>컴팩트한 위젯을 바탕화면에 고정하고, 항상 위 모드로 오늘의 할 일을 빠르게 확인하세요.</p>
+      </div>
+    </div>
+  </section>
 
-    <p><strong>캘린더</strong></p>
-    <ul>
-      <li>월간 캘린더에서 업무 일정을 한눈에 확인</li>
-      <li>날짜별 업무 예약 및 관리</li>
-      <li>공휴일 자동 표시</li>
-    </ul>
+  <!-- 하이라이트 -->
+  <section class="highlights">
+    <div class="highlights-inner">
+      <div class="highlight-row fade-in">
+        <div class="highlight-text">
+          <h3>Google 캘린더와 완벽하게 연동</h3>
+          <p>앱에서 추가한 업무가 Google 캘린더에 자동 반영되고, Google 캘린더에서 추가한 일정도 앱에 자동으로 등록됩니다. 완료 상태까지 실시간으로 동기화됩니다.</p>
+        </div>
+        <div class="highlight-visual hl-gcal">&#x1F4E1;</div>
+      </div>
+      <div class="highlight-row fade-in">
+        <div class="highlight-text">
+          <h3>바탕화면 위젯으로 빠른 확인</h3>
+          <p>전체 앱을 열지 않아도 위젯 모드로 오늘의 할 일과 진행률을 바탕화면에서 바로 확인할 수 있습니다. 항상 위 모드를 지원합니다.</p>
+        </div>
+        <div class="highlight-visual hl-widget">&#x1F4F1;</div>
+      </div>
+      <div class="highlight-row fade-in">
+        <div class="highlight-text">
+          <h3>반복 업무를 자동으로</h3>
+          <p>매주 회의, 매월 보고서 등 정기적인 업무를 한 번만 등록하면 자동으로 캘린더에 나타납니다. 격주, 특정 요일 등 다양한 패턴을 지원합니다.</p>
+        </div>
+        <div class="highlight-visual hl-recurring">&#x1F501;</div>
+      </div>
+    </div>
+  </section>
 
-    <p><strong>오늘 할 일</strong></p>
-    <ul>
-      <li>오늘의 업무를 우선순위로 정리</li>
-      <li>완료 체크 및 진행률 확인</li>
-      <li>위젯 모드로 바탕화면에서 바로 확인</li>
-    </ul>
+  <!-- CTA -->
+  <section class="cta">
+    <h2>지금 바로 시작하세요</h2>
+    <p>무료로 다운로드하고 업무를 더 스마트하게 관리하세요</p>
+    <a href="https://github.com/Skedit99/TaskNote/releases/latest" class="btn-primary">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      무료 다운로드
+    </a>
+  </section>
 
-    <p><strong>정기 업무</strong></p>
-    <ul>
-      <li>매주/매월 반복되는 업무 자동 등록</li>
-      <li>격주, 특정 요일 등 다양한 반복 패턴 지원</li>
-      <li>시작일/종료일 설정</li>
-    </ul>
-
-    <p><strong>Google 캘린더 연동</strong></p>
-    <ul>
-      <li>양방향 실시간 동기화</li>
-      <li>앱에서 추가한 업무가 Google 캘린더에 자동 반영</li>
-      <li>Google 캘린더에서 추가한 일정도 앱에 자동 등록</li>
-    </ul>
-
-    <p><strong>위젯 모드</strong></p>
-    <ul>
-      <li>컴팩트한 위젯으로 바탕화면에 고정</li>
-      <li>오늘 할 일 목록과 진행률 표시</li>
-      <li>항상 위 모드 지원</li>
-    </ul>
-
-    <h2>기술 스택</h2>
-    <p>
-      <span class="tech">Electron</span>
-      <span class="tech">React</span>
-      <span class="tech">Google Calendar API</span>
-      <span class="tech">Immer</span>
-    </p>
-
-    <div class="links">
+  <!-- 푸터 -->
+  <footer class="footer">
+    <div class="footer-links">
       <a href="https://github.com/Skedit99/TaskNote">GitHub</a>
       <a href="privacy-policy.html">개인정보처리방침</a>
       <a href="terms-of-service.html">서비스 이용약관</a>
+      <a href="mailto:kimyk85652@gmail.com">문의하기</a>
     </div>
+    <p class="footer-copy">&copy; 2026 Skedit99. All rights reserved.</p>
+  </footer>
 
-    <div class="footer">
-      <p>&copy; 2026 Skedit99. All rights reserved.</p>
-      <p>kimyk85652@gmail.com</p>
-    </div>
-  </div>
+  <script>
+    // 스크롤 페이드인 애니메이션
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+  </script>
 </body>
 </html>
