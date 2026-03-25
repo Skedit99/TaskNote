@@ -41,7 +41,7 @@
 
 ## 법적 문서
 
-- [개인정보처리방침](https://synonymous-narwhal-502.notion.site/)
+- [개인정보처리방침](https://synonymous-narwhal-502.notion.site/TaskNote-32ed41d108b58013a37bec7483c79dc5?source=copy_link)
 - [서비스 이용약관](https://synonymous-narwhal-502.notion.site/TaskNote-32ad41d108b5802595bbda280bae1158)
 - [Privacy Policy (English)](https://synonymous-narwhal-502.notion.site/TaskNote-Privacy-Policy-32ad41d108b580a09560fe28ab5f768d)
 - [Terms of Service (English)](https://synonymous-narwhal-502.notion.site/TaskNote-Terms-of-Service-32ad41d108b5800a8678c8e83a13d0cb)
