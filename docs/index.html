@@ -1,382 +1,1737 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskNote - 스마트 일정관리 데스크톱 앱</title>
-  <meta name="description" content="프로젝트 업무, 독립 일정, 정기 업무를 한눈에 관리하는 Windows 데스크톱 앱. Google 캘린더 양방향 동기화 지원.">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TaskNote - 할 일을 적는 순간, 하루가 움직입니다</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif; background: #0f0f14; color: #e8e8ec; line-height: 1.7; overflow-x: hidden; }
-    img { max-width: 100%; height: auto; }
+    /* ─── Reset & Base ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #ffffff;
+      color: #111111;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { text-decoration: none; color: inherit; }
 
-    /* 히어로 */
-    .hero {
-      min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-      text-align: center; padding: 80px 24px 60px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      position: relative; overflow: hidden;
+    /* ─── CSS Variables ─── */
+    :root {
+      --blue: #4F46E5;
+      --blue-dark: #3730A3;
+      --blue-light: #EEF2FF;
+      --accent: #7C3AED;
+      --bg-light: #F4F4F6;
+      --bg-section: #F0F2F8;
+      --text-primary: #111111;
+      --text-secondary: #6B7280;
+      --text-muted: #9CA3AF;
+      --border: #E5E7EB;
+      --card-bg: #FFFFFF;
+      --done-green: #10B981;
+      --warn-red: #EF4444;
+      --quick-amber: #F59E0B;
+      --radius-sm: 8px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --max-width: 1200px;
     }
-    .hero::before {
-      content: ''; position: absolute; inset: 0;
-      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.08) 0%, transparent 50%),
-                  radial-gradient(circle at 70% 80%, rgba(255,255,255,0.05) 0%, transparent 40%);
+
+    .container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 32px;
     }
-    .hero-content { position: relative; z-index: 1; max-width: 900px; }
-    .hero-icon { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
-    .hero h1 { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 12px; color: #fff; }
-    .hero .tagline { font-size: 18px; color: rgba(255,255,255,0.85); margin-bottom: 36px; line-height: 1.6; }
-    .hero-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 48px; }
+
+    /* ══════════════════════════════
+       1. NAVBAR
+    ══════════════════════════════ */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .navbar .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+    .navbar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 19px;
+      color: var(--text-primary);
+    }
+    .navbar-logo .logo-icon {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, var(--blue), var(--accent));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .navbar-nav {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+    .navbar-nav a {
+      font-size: 15px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .navbar-nav a:hover { color: var(--text-primary); }
     .btn-primary {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 16px 36px; background: #fff; color: #667eea;
-      border-radius: 12px; text-decoration: none; font-size: 16px; font-weight: 700;
-      transition: all 0.2s; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      background: var(--blue);
+      color: #fff;
+      padding: 10px 22px;
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
     }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
-    .btn-secondary {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 16px 36px; background: rgba(255,255,255,0.15); color: #fff;
-      border-radius: 12px; text-decoration: none; font-size: 16px; font-weight: 700;
-      transition: all 0.2s; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.2);
+    .btn-primary:hover {
+      background: var(--blue-dark);
+      transform: translateY(-1px);
     }
-    .btn-secondary:hover { background: rgba(255,255,255,0.25); }
-    .hero-screenshot {
-      border-radius: 12px; box-shadow: 0 24px 80px rgba(0,0,0,0.4);
-      max-width: 820px; width: 100%;
-    }
-    .scroll-hint {
-      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-      color: rgba(255,255,255,0.5); font-size: 13px; animation: bounce 2s infinite;
-    }
-    @keyframes bounce { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(8px)} }
 
-    /* 섹션 공통 */
-    .section { padding: 100px 24px; max-width: 1100px; margin: 0 auto; }
-    .section-title {
-      font-size: 36px; font-weight: 800; text-align: center; margin-bottom: 16px;
-      background: linear-gradient(135deg, #667eea, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    /* ══════════════════════════════
+       2. HERO SECTION
+    ══════════════════════════════ */
+    .hero {
+      background: linear-gradient(180deg, #F8F9FF 0%, #EDF0FF 50%, #F4F4F6 100%);
+      padding: 100px 0 80px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
     }
-    .section-desc { text-align: center; color: #888; font-size: 16px; margin-bottom: 60px; }
+    /* 배경 플로팅 아이콘 */
+    .hero-float {
+      position: absolute;
+      width: 56px; height: 56px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      animation: float 6s ease-in-out infinite;
+    }
+    .hero-float:nth-child(1) { top: 15%; left: 6%; animation-delay: 0s; }
+    .hero-float:nth-child(2) { top: 12%; right: 6%; animation-delay: 1s; }
+    .hero-float:nth-child(3) { top: 55%; left: 4%; animation-delay: 2s; }
+    .hero-float:nth-child(4) { top: 50%; right: 4%; animation-delay: 3s; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
 
-    /* 기능 카드 */
-    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--blue);
+      margin-bottom: 32px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .hero h1 {
+      font-size: clamp(44px, 6.5vw, 80px);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -2.5px;
+      color: var(--text-primary);
+      margin-bottom: 22px;
+      max-width: 780px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .hero h1 .highlight {
+      background: linear-gradient(135deg, var(--blue), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 17px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      max-width: 480px;
+      margin: 0 auto 36px;
+    }
+    .hero-cta {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn-hero {
+      background: linear-gradient(135deg, var(--blue), var(--accent));
+      color: #fff;
+      padding: 16px 40px;
+      border-radius: 100px;
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 24px rgba(79, 70, 229, 0.35);
+    }
+    .btn-hero:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(79, 70, 229, 0.45);
+    }
+    .hero-note {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* ══════════════════════════════
+       3. DASHBOARD PREVIEW (Interactive)
+    ══════════════════════════════ */
+    .dashboard-preview {
+      background: var(--bg-light);
+      padding: 80px 0 80px;
+      margin-top: -20px;
+    }
+    .dashboard-shell {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: 0 20px 80px rgba(0,0,0,0.12), 0 4px 20px rgba(0,0,0,0.06);
+      overflow: hidden;
+      display: flex;
+      min-height: 580px;
+    }
+
+    /* ── 메인: 캘린더 영역 (좌측) ── */
+    .db-cal-area {
+      flex: 1;
+      padding: 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      min-width: 0;
+      max-height: 680px;
+    }
+
+    /* ── 우측 사이드바: 탭 스트립 + 패널 ── */
+    .db-right {
+      display: flex;
+      flex-shrink: 0;
+      border-left: 1px solid var(--border);
+    }
+    .db-tab-strip {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 14px 6px;
+      background: #FAFBFF;
+    }
+    .db-tab-btn {
+      width: 52px;
+      min-height: 70px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: box-shadow 0.15s, background 0.15s;
+      font-family: inherit;
+    }
+    .db-tab-btn .tab-icon { font-size: 18px; }
+    .db-tab-btn .tab-label { font-size: 10px; font-weight: 700; line-height: 12px; text-align: center; }
+
+    .db-panel {
+      width: 320px;
+      background: #FAFBFF;
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .db-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px 10px;
+      flex-shrink: 0;
+    }
+    .db-panel-header h3 { font-size: 18px; font-weight: 700; }
+    .db-panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 18px 18px;
+    }
+
+    /* 패널 내 업무 카드 */
+    .panel-task {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      margin-bottom: 5px;
+      cursor: pointer;
+      transition: background 0.12s;
+      position: relative;
+      overflow: hidden;
+    }
+    .panel-task::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      border-radius: 3px 0 0 3px;
+    }
+    .panel-task .p-check {
+      width: 22px; height: 22px;
+      border-radius: 7px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .panel-task .p-name { font-size: 14px; font-weight: 600; }
+    .panel-task .p-sub { font-size: 12px; color: var(--text-muted); }
+    .panel-task.done { opacity: 0.5; }
+    .panel-task.done .p-check {
+      background: var(--done-green);
+      border-color: var(--done-green) !important;
+    }
+    .panel-task.done .p-name {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+
+    /* 퀵 일정 아이템 */
+    .db-quick-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-radius: 10px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #92400E;
+      cursor: pointer;
+      transition: background 0.15s;
+      user-select: none;
+    }
+    .db-quick-item:hover { background: #FEF3C7; }
+    .db-quick-item .q-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--quick-amber);
+      flex-shrink: 0;
+    }
+
+    /* 캘린더 헤더 */
+    .cal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .cal-header h3 {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+    .cal-nav {
+      display: flex;
+      gap: 6px;
+    }
+    .cal-nav button {
+      width: 32px; height: 32px;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+    .cal-nav button:hover { background: var(--bg-light); }
+
+    /* 캘린더 그리드 */
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 3px;
+    }
+    .cal-dow {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      padding: 6px 0;
+    }
+    .cal-dow.sun { color: var(--warn-red); }
+    .cal-dow.sat { color: var(--blue); }
+
+    .cal-cell {
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3px 1px;
+      cursor: pointer;
+      transition: background 0.12s;
+      position: relative;
+      min-height: 68px;
+      overflow: hidden;
+    }
+    .cal-cell:hover { background: var(--bg-light); }
+    .cal-cell.selected {
+      background: var(--blue-light);
+      box-shadow: inset 0 0 0 2px var(--blue);
+    }
+    .cal-cell.today .cal-day {
+      background: var(--blue);
+      color: #fff !important;
+      border-radius: 50%;
+      width: 28px; height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-weight: 700;
+      font-size: 14px;
+      z-index: 1;
+    }
+    .cal-cell.today {
+      background: var(--blue-light);
+      border: 2px solid var(--blue);
+    }
+    .cal-cell.today.selected {
+      background: var(--blue-light);
+      box-shadow: inset 0 0 0 2px var(--blue);
+      border: 2px solid var(--blue);
+    }
+    .cal-day {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+    .cal-cell.empty { cursor: default; }
+    .cal-cell.empty:hover { background: transparent; }
+    .cal-cell.sun .cal-day { color: var(--warn-red); }
+    .cal-cell.sat .cal-day { color: var(--blue); }
+
+    /* 캘린더 셀 안의 업무 labels */
+    .cal-tasks {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      width: 100%;
+      padding: 0 2px;
+      overflow: hidden;
+    }
+    .cal-task-label {
+      font-size: 8px;
+      font-weight: 600;
+      padding: 1px 3px;
+      border-radius: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .cal-task-label .t-icon {
+      font-size: 7px;
+      flex-shrink: 0;
+    }
+    .cal-task-more {
+      font-size: 7px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1;
+    }
+
+    /* 캘린더 하단 상세 영역 */
+    .cal-detail {
+      margin-top: 8px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .cal-detail-header {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cal-detail-header .today-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 8px;
+      background: var(--blue-light);
+      color: var(--blue);
+    }
+
+    /* 날짜 상세: 타입 섹션 */
+    .detail-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      padding: 6px 4px 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .detail-section-title:first-child { padding-top: 0; }
+    /* 날짜 상세 업무 항목 */
+    .detail-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      margin-bottom: 3px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .detail-item .d-icon {
+      font-size: 12px;
+      flex-shrink: 0;
+      width: 16px;
+      text-align: center;
+    }
+    .detail-item .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .detail-item .time {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .detail-item .proj-tag {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 100px;
+      margin-left: auto;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    /* (패널 내 체크리스트는 JS로 인라인 렌더링) */
+
+    /* 입력 필드 (업무 추가) */
+    .add-task-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .add-task-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .add-task-input:focus { border-color: var(--blue); }
+    .add-task-input::placeholder { color: var(--text-muted); }
+    .add-task-btn {
+      padding: 8px 14px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+      font-family: inherit;
+    }
+    .add-task-btn:hover { background: var(--blue-dark); }
+    .add-task-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* 안내 메시지 */
+    .hint-msg {
+      text-align: center;
+      padding: 20px 10px;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* 토스트 알림 */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #1F2937;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+      z-index: 999;
+      opacity: 0;
+      transition: all 0.3s ease;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ══════════════════════════════
+       4. LOGO BAR
+    ══════════════════════════════ */
+    .logo-bar {
+      background: #fff;
+      padding: 56px 0;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+    .logo-bar p {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      margin-bottom: 28px;
+    }
+    .logo-grid {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 48px;
+      flex-wrap: wrap;
+    }
+    .logo-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+      opacity: 1;
+    }
+    .logo-item .l-icon {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #fff;
+    }
+
+    /* ══════════════════════════════
+       5. FEATURES GRID
+    ══════════════════════════════ */
+    .features {
+      background: var(--bg-light);
+      padding: 100px 0;
+    }
+    .section-label {
+      display: inline-flex;
+      background: var(--blue-light);
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 700;
+      padding: 6px 18px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+    }
+    .section-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+    .section-header h2 {
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 900;
+      letter-spacing: -1.5px;
+      line-height: 1.15;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+    .section-header p {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 500px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
     .feature-card {
-      background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 16px;
-      padding: 28px 24px; transition: all 0.3s;
+      background: #fff;
+      border-radius: var(--radius-lg);
+      padding: 36px;
+      border: 1px solid var(--border);
+      transition: box-shadow 0.2s;
     }
-    .feature-card:hover { border-color: #667eea44; transform: translateY(-4px); box-shadow: 0 12px 40px rgba(102,126,234,0.1); }
-    .feature-icon { font-size: 28px; margin-bottom: 12px; display: block; }
-    .feature-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; color: #f0f0f4; }
-    .feature-card p { font-size: 13px; color: #888; line-height: 1.7; }
-
-    /* 쇼케이스 섹션 */
-    .showcase { padding: 80px 24px; }
-    .showcase:nth-child(even) { background: #14141c; }
-    .showcase-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 48px; }
-    .showcase-inner.reverse { flex-direction: row-reverse; }
-    .showcase-inner .showcase-visual { flex: 1.2; }
-    .showcase-inner .showcase-text { flex: 0.8; }
-    .showcase-text { flex: 1; min-width: 0; }
-    .showcase-text .label { font-size: 13px; font-weight: 700; color: #667eea; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
-    .showcase-text h3 { font-size: 28px; font-weight: 800; margin-bottom: 16px; line-height: 1.4; }
-    .showcase-text p { font-size: 15px; color: #999; line-height: 1.8; }
-    .showcase-text ul { list-style: none; margin-top: 16px; }
-    .showcase-text ul li { font-size: 14px; color: #aaa; padding: 4px 0; }
-    .showcase-text ul li::before { content: "✓ "; color: #667eea; font-weight: 700; }
-    .showcase-visual { flex: 1; min-width: 0; display: flex; gap: 16px; align-items: center; justify-content: center; }
-    .showcase-visual img { border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
-    .showcase-visual .img-single { width: 100%; }
-    .showcase-visual .img-pair { width: 48%; }
-
-    /* 다크/라이트 비교 */
-    .theme-compare {
-      padding: 100px 24px; background: #14141c;
+    .feature-card:hover {
+      box-shadow: 0 8px 30px rgba(0,0,0,0.06);
     }
-    .theme-compare-inner { max-width: 1100px; margin: 0 auto; text-align: center; }
-    .theme-images { display: flex; gap: 24px; justify-content: center; margin-top: 48px; }
-    .theme-img-wrap { flex: 1; max-width: 520px; }
-    .theme-img-wrap img { width: 100%; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
-    .theme-img-wrap .theme-label { font-size: 14px; font-weight: 600; color: #888; margin-top: 12px; }
-
-    /* 위젯 쇼케이스 */
-    .widget-group { display: flex; gap: 16px; align-items: flex-end; justify-content: flex-start; }
-    .widget-group img { border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
-    .widget-group .widget-lg { height: 320px; width: auto; }
-    .widget-group .widget-md { height: 270px; width: auto; }
-    .widget-group .widget-sm { height: 230px; width: auto; }
-
-    /* 모달 갤러리 */
-    .modal-gallery { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-top: 48px; }
-    .modal-gallery img { height: 300px; width: auto; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
-
-    /* CTA */
-    .cta {
-      text-align: center; padding: 100px 24px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    .feature-card-visual {
+      height: 160px;
+      background: var(--bg-light);
+      border-radius: var(--radius-md);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid var(--border);
     }
-    .cta h2 { font-size: 32px; font-weight: 800; color: #fff; margin-bottom: 12px; }
-    .cta p { color: rgba(255,255,255,0.8); font-size: 16px; margin-bottom: 32px; }
+    .feature-card h3 {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+    .feature-card p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+    /* Feature 카드 내부 미니 UI */
+    .feat-mini {
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+    .feat-mini-header {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .feat-mini-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 3px;
+    }
+    .feat-mini-dot {
+      width: 8px; height: 8px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    .feat-progress {
+      height: 4px;
+      background: #E5E7EB;
+      border-radius: 4px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .feat-progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.4s;
+    }
 
-    /* 푸터 */
+    /* ══════════════════════════════
+       6. CTA SECTION
+    ══════════════════════════════ */
+    .cta-section {
+      background: linear-gradient(135deg, #312E81 0%, var(--blue) 50%, var(--accent) 100%);
+      padding: 100px 0;
+      text-align: center;
+      color: #fff;
+    }
+    .cta-section h2 {
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 900;
+      letter-spacing: -1.5px;
+      margin-bottom: 16px;
+    }
+    .cta-section p {
+      font-size: 17px;
+      opacity: 0.75;
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+    .btn-white {
+      background: #fff;
+      color: var(--blue);
+      padding: 16px 40px;
+      border-radius: 100px;
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .btn-white:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    }
+    .cta-sub {
+      margin-top: 16px;
+      font-size: 13px;
+      opacity: 0.6;
+    }
+
+    /* ══════════════════════════════
+       7. FOOTER
+    ══════════════════════════════ */
     .footer {
-      padding: 40px 24px; text-align: center; background: #0a0a10;
-      border-top: 1px solid #1a1a2a;
+      background: #111;
+      color: #6B7280;
+      padding: 40px 0;
     }
-    .footer-links { display: flex; justify-content: center; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
-    .footer-links a { color: #888; text-decoration: none; font-size: 14px; transition: color 0.2s; }
-    .footer-links a:hover { color: #667eea; }
-    .footer-copy { font-size: 13px; color: #555; }
+    .footer .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .footer-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 16px;
+      color: #fff;
+    }
+    .footer-logo .logo-dot {
+      width: 22px; height: 22px;
+      background: linear-gradient(135deg, var(--blue), var(--accent));
+      border-radius: 5px;
+    }
+    .footer-links {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+    }
+    .footer-links a {
+      font-size: 14px;
+      color: #6B7280;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: #fff; }
 
-    /* 반응형 */
+    /* ══════════════════════════════
+       Responsive
+    ══════════════════════════════ */
     @media (max-width: 900px) {
-      .features { grid-template-columns: repeat(2, 1fr); }
+      .navbar-nav { display: none; }
+      .features-grid { grid-template-columns: 1fr; }
+      .db-right { display: none; }
     }
-    @media (max-width: 768px) {
-      .hero h1 { font-size: 32px; }
-      .hero .tagline { font-size: 16px; }
-      .section-title { font-size: 28px; }
-      .features { grid-template-columns: 1fr; }
-      .showcase-inner, .showcase-inner.reverse { flex-direction: column; gap: 32px; }
-      .showcase-visual { width: 100%; }
-      .theme-images { flex-direction: column; align-items: center; }
-      .widget-group { flex-direction: column; align-items: center; }
-      .widget-group img { height: auto; width: 80%; max-width: 280px; }
-      .modal-gallery img { height: auto; width: 80%; max-width: 320px; }
+    @media (max-width: 640px) {
+      .container { padding: 0 16px; }
+      .hero { padding: 64px 0 48px; }
+      .hero-float { display: none; }
+      .cal-grid { gap: 1px; }
+      .cal-cell { min-height: 40px; }
     }
-
-    /* 스크롤 애니메이션 */
-    .fade-in { opacity: 0; transform: translateY(30px); transition: all 0.6s ease-out; }
-    .fade-in.visible { opacity: 1; transform: translateY(0); }
   </style>
 </head>
 <body>
 
-  <!-- 히어로 -->
+  <!-- 1. NAVBAR -->
+  <nav class="navbar">
+    <div class="container">
+      <a href="#" class="navbar-logo">
+        <img src="TaskNote-icon.png" alt="T" style="width:30px;height:30px;border-radius:8px;" />
+        TaskNote
+      </a>
+      <ul class="navbar-nav">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#demo">Demo</a></li>
+      </ul>
+      <button class="btn-primary" onclick="scrollTo('#download')">Windows Download</button>
+    </div>
+  </nav>
+
+  <!-- 2. HERO -->
   <section class="hero">
-    <div class="hero-content">
-      <img src="https://raw.githubusercontent.com/Skedit99/TaskNote/main/build/TaskNote-icon.png" alt="TaskNote" class="hero-icon">
-      <h1>TaskNote</h1>
-      <p class="tagline">프로젝트 업무, 독립 일정, 정기 업무를<br>하나의 캘린더에서 한눈에 관리하세요</p>
-      <div class="hero-buttons">
-        <a href="https://github.com/Skedit99/TaskNote/releases/download/v1.0.1/TaskNote-Setup-1.0.1.exe" class="btn-primary" download>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          다운로드 (Windows)
-        </a>
-        <a href="https://github.com/Skedit99/TaskNote" class="btn-secondary">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-          GitHub
-        </a>
-      </div>
-      <img src="images/%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-%EB%B3%B4%EA%B4%80%ED%95%A8.png" alt="TaskNote 메인 화면" class="hero-screenshot">
-    </div>
-    <div class="scroll-hint">아래로 스크롤하여 더 알아보기 ↓</div>
-  </section>
-
-  <!-- 주요 기능 -->
-  <section class="section">
-    <h2 class="section-title fade-in">주요 기능</h2>
-    <p class="section-desc fade-in">업무 관리에 필요한 모든 것을 하나의 앱에서</p>
-    <div class="features">
-      <div class="feature-card fade-in">
-        <span class="feature-icon">📋</span>
-        <h3>프로젝트 관리</h3>
-        <p>프로젝트별 세부 업무를 관리하고, 색상 태그로 한눈에 구분하세요.</p>
-      </div>
-      <div class="feature-card fade-in">
-        <span class="feature-icon">📅</span>
-        <h3>월간 캘린더</h3>
-        <p>캘린더에서 모든 업무를 확인하고, 날짜별로 업무를 예약하세요.</p>
-      </div>
-      <div class="feature-card fade-in">
-        <span class="feature-icon">✅</span>
-        <h3>오늘 할 일</h3>
-        <p>오늘의 업무를 정리하고, 진행률을 실시간으로 확인하세요.</p>
-      </div>
-      <div class="feature-card fade-in">
-        <span class="feature-icon">🔄</span>
-        <h3>정기 업무</h3>
-        <p>매주, 매월, 격주 등 반복 업무를 자동 등록. 시작일·종료일 설정 가능.</p>
-      </div>
-      <div class="feature-card fade-in">
-        <span class="feature-icon">🌐</span>
-        <h3>Google 캘린더 연동</h3>
-        <p>양방향 실시간 동기화로 항상 최신 상태를 유지합니다.</p>
-      </div>
-      <div class="feature-card fade-in">
-        <span class="feature-icon">🖥️</span>
-        <h3>위젯 모드</h3>
-        <p>바탕화면 위젯으로 오늘 할 일을 항상 확인하세요.</p>
+    <div class="hero-float"><img src="TaskNote-icon.png" alt="TaskNote" style="width:32px;height:32px;border-radius:6px;" /></div>
+    <div class="hero-float"><img src="google-calendar.png" alt="Google Calendar" style="width:32px;height:32px;object-fit:contain;" /></div>
+    <div class="hero-float"><img src="onedrive.png" alt="OneDrive" style="width:32px;height:32px;object-fit:contain;" /></div>
+    <div class="hero-float"><img src="google-drive.png" alt="Google Drive" style="width:32px;height:32px;object-fit:contain;" /></div>
+    <div class="container">
+      <div class="hero-badge">Windows Desktop App</div>
+      <h1>할 일을 적는 순간<br><span class="highlight">하루가 움직입니다</span></h1>
+      <p>캘린더 위에서 프로젝트, 반복 업무, 일상 루틴까지 하나의 화면에서 관리하세요. 복잡한 설정 없이 바로 시작합니다.</p>
+      <div class="hero-cta">
+        <a href="https://github.com/Skedit99/TaskNote/releases/download/v1.1.0/TaskNote-Setup-1.1.0.exe" class="btn-hero" style="text-decoration:none;display:inline-block">지금 체험해보기 (Windows)</a>
+        <div class="hero-note">회원가입 없음 &middot; 무료 &middot; 설치 즉시 사용</div>
       </div>
     </div>
   </section>
 
-  <!-- 쇼케이스 1: 프로젝트 & 업무 -->
-  <section class="showcase">
-    <div class="showcase-inner fade-in">
-      <div class="showcase-text">
-        <div class="label">프로젝트 관리</div>
-        <h3>프로젝트와 세부 업무를<br>체계적으로 관리</h3>
-        <p>색상 태그로 프로젝트를 구분하고, 세부 업무를 추가하여 진행 상황을 한눈에 파악하세요. D-Day 카운터로 마감일도 놓치지 않습니다.</p>
-        <ul>
-          <li>8가지 프로젝트 색상 태그</li>
-          <li>세부 업무 추가 및 완료 체크</li>
-          <li>D-Day 자동 카운터</li>
-        </ul>
-      </div>
-      <div class="showcase-visual">
-        <img src="images/%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8%20%EC%B6%94%EA%B0%80.jpg" alt="프로젝트 추가" class="img-single">
-      </div>
-    </div>
-  </section>
+  <!-- 3. DASHBOARD PREVIEW (Interactive) -->
+  <section class="dashboard-preview" id="demo">
+    <div class="container">
+      <div class="dashboard-shell">
 
-  <!-- 쇼케이스 2: 업무 편집 -->
-  <section class="showcase">
-    <div class="showcase-inner reverse fade-in">
-      <div class="showcase-text">
-        <div class="label">업무 편집</div>
-        <h3>업무 시간과 메모를<br>간편하게 설정</h3>
-        <p>시작 시간과 종료 시간을 설정하고, 메모를 추가하여 업무를 더욱 구체적으로 관리하세요. 설정한 시간은 Google 캘린더에도 자동 반영됩니다.</p>
-        <ul>
-          <li>시작·종료 시간 설정</li>
-          <li>메모 및 설명 추가</li>
-          <li>Google 캘린더 자동 반영</li>
-        </ul>
-      </div>
-      <div class="showcase-visual">
-        <img src="images/%EC%97%85%EB%AC%B4%20%ED%8E%B8%EC%A7%91%20%EB%B0%8F%20%EC%B6%94%EA%B0%80.jpg" alt="업무 편집" class="img-single">
-      </div>
-    </div>
-  </section>
+        <!-- 좌측: 캘린더 영역 (그리드 + 상세) -->
+        <main class="db-cal-area">
+          <!-- 헤더 바 (앱 타이틀바 모방) -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0 0 8px;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <img src="TaskNote-icon.png" alt="T" style="width:28px;height:28px;border-radius:8px;" />
+              <span style="font-weight:800;font-size:16px;">TaskNote</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span id="header-date" style="font-size:13px;color:var(--text-secondary);font-weight:500;margin-right:4px;"></span>
+              <div style="width:30px;height:30px;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-muted);cursor:default;" title="Google Calendar 동기화">&#x21bb;</div>
+              <div style="width:30px;height:30px;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-muted);cursor:default;" title="다크 모드">&#x263E;</div>
+              <div style="width:30px;height:30px;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-muted);cursor:default;" title="설정">&#x2699;</div>
+            </div>
+          </div>
 
-  <!-- 쇼케이스 3: 정기 업무 -->
-  <section class="showcase">
-    <div class="showcase-inner fade-in">
-      <div class="showcase-text">
-        <div class="label">정기 업무</div>
-        <h3>반복 업무를 한 번만<br>등록하면 끝</h3>
-        <p>매주 회의, 매월 보고서 등 정기적인 업무를 자동으로 캘린더에 등록합니다. 격주, 3주, 4주 간격까지 다양한 패턴을 지원합니다.</p>
-        <ul>
-          <li>주간·월간 반복 설정</li>
-          <li>격주·3주·4주 간격 지원</li>
-          <li>시작일·종료일 지정 가능</li>
-        </ul>
-      </div>
-      <div class="showcase-visual">
-        <img src="images/%EC%A3%BC%EA%B0%84%20%EC%97%85%EB%AC%B4%20%EC%B6%94%EA%B0%80.jpg" alt="주간 업무 추가" class="img-single">
-      </div>
-    </div>
-  </section>
+          <div class="cal-header">
+            <div class="cal-nav"><button onclick="calPrev()">&lt;</button></div>
+            <h3 id="cal-title"></h3>
+            <div class="cal-nav"><button onclick="calNext()">&gt;</button></div>
+          </div>
+          <div class="cal-grid" id="cal-grid"></div>
 
-  <!-- 쇼케이스 4: 위젯 모드 -->
-  <section class="showcase">
-    <div class="showcase-inner reverse fade-in">
-      <div class="showcase-text">
-        <div class="label">위젯 모드</div>
-        <h3>바탕화면에서 바로<br>오늘의 할 일 확인</h3>
-        <p>컴팩트한 위젯을 바탕화면에 고정하세요. 오늘 할 일 목록, 캘린더 뷰, 축소형 위젯 등 다양한 모드를 지원합니다. 항상 위/아래 모드로 작업 중에도 확인 가능합니다.</p>
-        <ul>
-          <li>오늘 할 일 위젯</li>
-          <li>캘린더 위젯 (공휴일 표시)</li>
-          <li>항상 위에·항상 아래 모드</li>
-        </ul>
-      </div>
-      <div class="showcase-visual">
-        <div class="widget-group">
-          <img src="images/%EC%BA%98%EB%A6%B0%EB%8D%94%20%EC%9C%84%EC%A0%AF%EB%AA%A8%EB%93%9C.jpg" alt="캘린더 위젯" class="widget-lg">
-          <img src="images/%EC%98%A4%EB%8A%98%ED%95%A0%EC%9D%BC%20%EC%9C%84%EC%A0%AF%EB%AA%A8%EB%93%9C.jpg" alt="오늘할일 위젯" class="widget-md">
-          <img src="images/%EC%9C%84%EC%A0%AF%EB%AA%A8%EB%93%9C%20%EC%B6%95%EC%86%8C%ED%98%95.jpg" alt="축소형 위젯" class="widget-sm">
+          <!-- 선택 날짜 상세 (캘린더 아래) -->
+          <div class="cal-detail" id="detail-area">
+            <div class="cal-detail-header">
+              <span id="detail-title">날짜를 선택하세요</span>
+              <span id="detail-today-tag" class="today-tag" style="display:none;">오늘</span>
+            </div>
+            <div id="detail-list">
+              <div class="hint-msg">캘린더에서 날짜를 클릭하면<br>해당 날의 업무가 표시됩니다</div>
+            </div>
+          </div>
+        </main>
+
+        <!-- 우측 사이드바: 탭 스트립 → 패널 -->
+        <div class="db-right">
+          <div class="db-tab-strip">
+            <button class="db-tab-btn" data-tab="today" onclick="switchTab('today')" style="background:#EF4444;box-shadow:0 3px 12px #EF444444;">
+              <span class="tab-icon" style="color:#fff;">◎</span>
+              <span class="tab-label" style="color:#fff;">오늘<br>할 일</span>
+            </button>
+            <button class="db-tab-btn" data-tab="projects" onclick="switchTab('projects')" style="background:#fff;">
+              <span class="tab-icon" style="color:var(--blue);">◈</span>
+              <span class="tab-label">프로<br>젝트</span>
+            </button>
+            <button class="db-tab-btn" data-tab="recurring" onclick="switchTab('recurring')" style="background:#fff;">
+              <span class="tab-icon" style="color:var(--done-green);">↻</span>
+              <span class="tab-label">정기<br>업무</span>
+            </button>
+            <button class="db-tab-btn" data-tab="quick" onclick="switchTab('quick')" style="background:#fff;">
+              <span class="tab-icon" style="color:var(--quick-amber);">↯</span>
+              <span class="tab-label">퀵<br>일정</span>
+            </button>
+          </div>
+          <div class="db-panel" id="side-panel">
+            <div class="db-panel-header">
+              <h3 id="panel-title">오늘 할 일</h3>
+              <span id="panel-badge" style="font-size:14px;font-weight:700;color:var(--blue);background:var(--blue-light);padding:3px 12px;border-radius:14px;">0</span>
+            </div>
+            <div class="db-panel-body" id="panel-body"></div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- 쇼케이스 5: Google 캘린더 -->
-  <section class="showcase">
-    <div class="showcase-inner fade-in">
-      <div class="showcase-text">
-        <div class="label">Google Calendar</div>
-        <h3>Google 캘린더와<br>완벽하게 연동</h3>
-        <p>앱에서 추가한 업무가 Google 캘린더에 자동 반영되고, Google 캘린더의 일정도 앱에 표시됩니다. 완료 상태까지 실시간 동기화됩니다.</p>
-        <ul>
-          <li>양방향 실시간 동기화</li>
-          <li>공휴일 자동 표시</li>
-          <li>오프라인 변경사항 자동 동기화</li>
-        </ul>
-      </div>
-      <div class="showcase-visual">
-        <img src="images/%EA%B5%AC%EA%B8%80-%EC%BA%98%EB%A6%B0%EB%8D%94-%EC%97%B0%EB%8F%99-%ED%99%94%EB%A9%B4.png" alt="Google 캘린더 연동" class="img-single">
+  <!-- 4. LOGO BAR -->
+  <section class="logo-bar">
+    <div class="container">
+      <p>다양한 서비스와 연동됩니다</p>
+      <div class="logo-grid">
+        <div class="logo-item"><img src="google-calendar.png" alt="Google Calendar" style="width:28px;height:28px;object-fit:contain;" /> Google Calendar</div>
+        <div class="logo-item"><img src="onedrive.png" alt="OneDrive" style="width:28px;height:28px;object-fit:contain;" /> OneDrive</div>
+        <div class="logo-item"><img src="google-drive.png" alt="Google Drive" style="width:28px;height:28px;object-fit:contain;" /> Google Drive</div>
       </div>
     </div>
   </section>
 
-  <!-- 다크/라이트 모드 비교 -->
-  <section class="theme-compare">
-    <div class="theme-compare-inner">
-      <h2 class="section-title fade-in">다크 모드 & 라이트 모드</h2>
-      <p class="section-desc fade-in">눈이 편한 모드를 선택하세요. 원클릭으로 전환됩니다.</p>
-      <div class="theme-images fade-in">
-        <div class="theme-img-wrap">
-          <img src="images/%EB%8B%A4%ED%81%AC%EB%AA%A8%EB%93%9C.png" alt="다크 모드">
-          <div class="theme-label">다크 모드</div>
+  <!-- 5. FEATURES -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-header">
+        <div><span class="section-label">주요 기능</span></div>
+        <h2>하나의 화면에서<br>모든 일정을 관리하세요</h2>
+        <p>캘린더, 프로젝트, 반복 업무, 퀵 일정을 한 곳에서. 복잡한 설정 없이 바로 사용할 수 있습니다.</p>
+      </div>
+
+      <div class="features-grid">
+        <!-- Feature 1: 프로젝트 -->
+        <div class="feature-card">
+          <div class="feature-card-visual">
+            <div class="feat-mini">
+              <div class="feat-mini-header">프로젝트</div>
+              <div class="feat-mini-row" style="background:#EEF2FF;">
+                <span class="feat-mini-dot" style="background:#6366F1;"></span>
+                <span style="font-weight:600;">졸업 논문</span>
+                <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">D-14</span>
+              </div>
+              <div class="feat-progress"><div class="feat-progress-fill" style="width:65%;background:#6366F1;"></div></div>
+              <div class="feat-mini-row" style="background:#FEF3C7;margin-top:8px;">
+                <span class="feat-mini-dot" style="background:#F59E0B;"></span>
+                <span style="font-weight:600;">포트폴리오 제작</span>
+                <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">D-30</span>
+              </div>
+              <div class="feat-progress"><div class="feat-progress-fill" style="width:35%;background:#F59E0B;"></div></div>
+              <div class="feat-mini-row" style="background:#D1FAE5;margin-top:8px;">
+                <span class="feat-mini-dot" style="background:#10B981;"></span>
+                <span style="font-weight:600;">프리랜스 프로젝트</span>
+                <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">D-7</span>
+              </div>
+              <div class="feat-progress"><div class="feat-progress-fill" style="width:80%;background:#10B981;"></div></div>
+            </div>
+          </div>
+          <h3>프로젝트 관리</h3>
+          <p>최대 7개의 프로젝트를 색상별로 운영하세요. 계층형 하위 업무, D-Day 카운트다운, 진행률 바를 지원합니다.</p>
         </div>
-        <div class="theme-img-wrap">
-          <img src="images/%EB%9D%BC%EC%9D%B4%ED%8A%B8%EB%AA%A8%EB%93%9C.png" alt="라이트 모드">
-          <div class="theme-label">라이트 모드</div>
+
+        <!-- Feature 2: 정기 업무 -->
+        <div class="feature-card">
+          <div class="feature-card-visual">
+            <div class="feat-mini">
+              <div class="feat-mini-header">정기 업무</div>
+              <div class="feat-mini-row" style="background:#F0FDF4;border-left:3px solid #10B981;">
+                <span style="font-weight:600;">주간 보고</span>
+                <span style="margin-left:auto;font-size:11px;color:#10B981;">매주 월요일</span>
+              </div>
+              <div class="feat-mini-row" style="background:#EEF2FF;border-left:3px solid var(--blue);">
+                <span style="font-weight:600;">월간 정산</span>
+                <span style="margin-left:auto;font-size:11px;color:var(--blue);">매월 1째 수요일</span>
+              </div>
+              <div class="feat-mini-row" style="background:#FFF7ED;border-left:3px solid #F97316;">
+                <span style="font-weight:600;">팀 미팅</span>
+                <span style="margin-left:auto;font-size:11px;color:#F97316;">격주 금요일</span>
+              </div>
+              <div class="feat-mini-row" style="background:#FDF2F8;border-left:3px solid #EC4899;">
+                <span style="font-weight:600;">월급날</span>
+                <span style="margin-left:auto;font-size:11px;color:#EC4899;">매월 10일</span>
+              </div>
+            </div>
+          </div>
+          <h3>정기 업무 자동화</h3>
+          <p>매주, 격주, 매월 특정 날짜 또는 N째 주 요일로 자동 반복. 시작일과 종료일도 지정할 수 있습니다.</p>
+        </div>
+
+        <!-- Feature 3: 퀵 일정 -->
+        <div class="feature-card">
+          <div class="feature-card-visual">
+            <div class="feat-mini">
+              <div class="feat-mini-header">퀵 일정</div>
+              <div class="feat-mini-row" style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:8px 10px;">
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--quick-amber);"></span>
+                <span style="font-weight:600;color:#92400E;">헬스</span>
+                <span style="margin-left:auto;font-size:11px;padding:2px 8px;background:var(--quick-amber);color:#fff;border-radius:100px;font-weight:700;">+3/28</span>
+              </div>
+              <div class="feat-mini-row" style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:8px 10px;margin-top:2px;">
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--quick-amber);"></span>
+                <span style="font-weight:600;color:#92400E;">독서</span>
+                <span style="margin-left:auto;font-size:11px;padding:2px 8px;background:var(--quick-amber);color:#fff;border-radius:100px;font-weight:700;">+3/28</span>
+              </div>
+              <div class="feat-mini-row" style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:8px 10px;margin-top:2px;">
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--quick-amber);"></span>
+                <span style="font-weight:600;color:#92400E;">영어 공부</span>
+                <span style="margin-left:auto;font-size:11px;padding:2px 8px;background:var(--quick-amber);color:#fff;border-radius:100px;font-weight:700;">+3/28</span>
+              </div>
+              <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--text-muted);">날짜를 선택하고 원클릭으로 등록</div>
+            </div>
+          </div>
+          <h3>퀵 일정</h3>
+          <p>헬스, 독서, 영어 공부처럼 자주 하는 활동을 템플릿으로 등록. 원하는 날짜에 원클릭으로 추가합니다.</p>
+        </div>
+
+        <!-- Feature 4: 위젯 모드 -->
+        <div class="feature-card">
+          <div class="feature-card-visual" style="background:linear-gradient(135deg,#1E293B,#334155);position:relative;">
+            <div style="background:rgba(255,255,255,0.95);border-radius:10px;padding:12px 14px;width:180px;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+              <div style="font-size:11px;font-weight:700;margin-bottom:8px;color:var(--text-primary);">오늘 할 일</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                <span style="width:14px;height:14px;border-radius:4px;border:2px solid #E5E7EB;"></span>
+                <span style="font-size:10px;">주간 보고 작성</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                <span style="width:14px;height:14px;border-radius:4px;background:#10B981;display:flex;align-items:center;justify-content:center;"><span style="color:#fff;font-size:7px;font-weight:800;">v</span></span>
+                <span style="font-size:10px;text-decoration:line-through;color:#9CA3AF;">논문 초안 검토</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="width:14px;height:14px;border-radius:4px;border:2px solid #E5E7EB;"></span>
+                <span style="font-size:10px;">헬스</span>
+              </div>
+              <div style="height:3px;background:#E5E7EB;border-radius:3px;margin-top:8px;overflow:hidden;">
+                <div style="width:33%;height:100%;background:#10B981;border-radius:3px;"></div>
+              </div>
+            </div>
+          </div>
+          <h3>바탕화면 위젯</h3>
+          <p>작은 투명 창으로 바탕화면에 띄워두세요. 오늘 할 일과 미니 캘린더를 항상 확인할 수 있습니다.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- 쇼케이스 6: 편의 기능 -->
-  <section class="showcase">
-    <div class="showcase-inner reverse fade-in">
-      <div class="showcase-text">
-        <div class="label">편의 기능</div>
-        <h3>세심한 설정으로<br>나만의 워크플로우</h3>
-        <p>위젯 모드 동작 방식, 일정 표시 범위, 데이터 저장 경로까지 세밀하게 설정할 수 있습니다. 클라우드 폴더를 지정하면 여러 PC에서 데이터를 동기화할 수 있습니다.</p>
-        <ul>
-          <li>Windows 시작 시 자동 실행</li>
-          <li>일정 표시 범위 커스텀</li>
-          <li>OneDrive/Google Drive 멀티PC 동기화</li>
-        </ul>
-      </div>
-      <div class="showcase-visual">
-        <img src="images/%ED%8E%B8%EC%9D%98%EA%B8%B0%EB%8A%A5.jpg" alt="설정" class="img-single">
-      </div>
+  <!-- 6. CTA -->
+  <section class="cta-section" id="download">
+    <div class="container">
+      <h2>할 일 목록은 쓰는 게 아니라<br>설계하는 것입니다</h2>
+      <p>지금 다운로드하고 오늘부터 시작하세요</p>
+      <a href="https://github.com/Skedit99/TaskNote/releases/download/v1.1.0/TaskNote-Setup-1.1.0.exe" class="btn-white" style="text-decoration:none;display:inline-block">Windows 무료 다운로드</a>
+      <div class="cta-sub">회원가입 없음 &middot; 무료 &middot; 설치 즉시 사용</div>
     </div>
   </section>
 
-  <!-- CTA -->
-  <section class="cta">
-    <h2>지금 바로 시작하세요</h2>
-    <p>무료로 다운로드하고 업무를 더 스마트하게 관리하세요</p>
-    <a href="https://github.com/Skedit99/TaskNote/releases/download/v1.0.1/TaskNote-Setup-1.0.1.exe" class="btn-primary" download>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      무료 다운로드
-    </a>
-  </section>
-
-  <!-- 푸터 -->
+  <!-- 7. FOOTER -->
   <footer class="footer">
-    <div class="footer-links">
-      <a href="https://github.com/Skedit99/TaskNote">GitHub</a>
-      <a href="privacy-policy.html">개인정보처리방침</a>
-      <a href="terms-of-service.html">서비스 이용약관</a>
-      <a href="mailto:kimyk85652@gmail.com">문의하기</a>
+    <div class="container">
+      <div class="footer-logo">
+        <div class="logo-dot"></div>
+        TaskNote
+      </div>
+      <ul class="footer-links">
+        <li><a href="#">개인정보처리방침</a></li>
+        <li><a href="#">이용약관</a></li>
+        <li><a href="#">문의</a></li>
+      </ul>
+      <div style="font-size:13px;">&copy; 2026 TaskNote</div>
     </div>
-    <p class="footer-copy">&copy; 2026 Skedit99. All rights reserved.</p>
   </footer>
 
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ══════════════════════════════
+       Interactive Calendar Script
+  ══════════════════════════════ -->
   <script>
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) entry.target.classList.add('visible');
+    // ── State ──
+    const now = new Date();
+    let calYear = now.getFullYear();
+    let calMonth = now.getMonth();
+    let selectedDay = now.getDate();
+
+    /*
+     * Task types (matching the actual app):
+     *   event    ⚑  독립 일정 (파란색/보라색)
+     *   today    ◎  오늘 할 일
+     *   scheduled ◇ 예약 업무
+     *   recurring ↻ 정기 업무
+     *   quick    ↯  퀵 일정
+     *   completed ✓ 완료됨
+     */
+    const TYPE_META = {
+      event:     { icon: '⚑', label: '일정',     color: '#6366F1' },
+      today:     { icon: '◎', label: '오늘 할 일', color: '#3B82F6' },
+      scheduled: { icon: '◇', label: '예약 업무',  color: '#8B5CF6' },
+      recurring: { icon: '↻', label: '정기 업무',  color: '#10B981' },
+      quick:     { icon: '↯', label: '퀵 일정',   color: '#F59E0B' },
+    };
+
+    // 날짜별 업무 저장: { "2026-03-28": [{name, type, color, done, time?, project?}] }
+    const tasks = {};
+
+    const DAYS = ['일','월','화','수','목','금','토'];
+    const COLORS = ['#6366F1','#10B981','#F59E0B','#EF4444','#EC4899','#8B5CF6','#06B6D4'];
+
+    function dk(y, m, d) {
+      return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+    const todayKey = dk(now.getFullYear(), now.getMonth(), now.getDate());
+
+    function isToday(y, m, d) {
+      return y === now.getFullYear() && m === now.getMonth() && d === now.getDate();
+    }
+
+    // ── Helper: get Nth weekday of month ──
+    function getNthWeekday(y, m, nth, dow) {
+      let count = 0;
+      const last = new Date(y, m+1, 0).getDate();
+      for (let d = 1; d <= last; d++) {
+        if (new Date(y, m, d).getDay() === dow) {
+          count++;
+          if (count === nth) return d;
+        }
+      }
+      return null;
+    }
+
+    // ── Recurring definitions ──
+    const recurringDefs = [
+      { name: '주간 보고 작성', interval: 'weekly', dow: 1, color: '#10B981' },         // 매주 월요일
+      { name: '팀 미팅', interval: 'biweekly', dow: 3, color: '#3B82F6', startWeekEven: true }, // 격주 수요일
+      { name: '월간 정산', interval: 'monthly', day: 1, color: '#8B5CF6' },              // 매월 1일
+      { name: '독서 모임', interval: 'monthly_nth', nth: 2, dow: 6, color: '#EC4899' },  // 매월 2째주 토요일
+    ];
+
+    // ── Generate recurring for a given month ──
+    function getRecurringForMonth(y, m) {
+      const result = {};
+      const lastDate = new Date(y, m+1, 0).getDate();
+      const firstDow = new Date(y, m, 1).getDay();
+
+      recurringDefs.forEach(r => {
+        if (r.interval === 'weekly') {
+          for (let d = 1; d <= lastDate; d++) {
+            if (new Date(y, m, d).getDay() === r.dow) {
+              const key = dk(y, m, d);
+              if (!result[key]) result[key] = [];
+              result[key].push({ name: r.name, type: 'recurring', color: r.color, done: false });
+            }
+          }
+        } else if (r.interval === 'biweekly') {
+          let count = 0;
+          for (let d = 1; d <= lastDate; d++) {
+            if (new Date(y, m, d).getDay() === r.dow) {
+              count++;
+              if (count % 2 === 1) {
+                const key = dk(y, m, d);
+                if (!result[key]) result[key] = [];
+                result[key].push({ name: r.name, type: 'recurring', color: r.color, done: false });
+              }
+            }
+          }
+        } else if (r.interval === 'monthly') {
+          if (r.day <= lastDate) {
+            const key = dk(y, m, r.day);
+            if (!result[key]) result[key] = [];
+            result[key].push({ name: r.name, type: 'recurring', color: r.color, done: false });
+          }
+        } else if (r.interval === 'monthly_nth') {
+          const d = getNthWeekday(y, m, r.nth, r.dow);
+          if (d) {
+            const key = dk(y, m, d);
+            if (!result[key]) result[key] = [];
+            result[key].push({ name: r.name, type: 'recurring', color: r.color, done: false });
+          }
+        }
       });
-    }, { threshold: 0.1 });
-    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+      return result;
+    }
+
+    // ── Preset static data (feature-specific fake tasks) ──
+    function initPresets() {
+      const t = now.getDate();
+      const y = now.getFullYear(), m = now.getMonth();
+
+      // 오늘: today tasks
+      addPreset(todayKey, { name: '논문 초안 검토', type: 'today', color: '#6366F1', done: false, project: '졸업 논문' });
+      addPreset(todayKey, { name: 'UI 디자인 수정', type: 'today', color: '#F59E0B', done: false, project: '포트폴리오 제작' });
+      addPreset(todayKey, { name: '이메일 답장', type: 'today', color: '#3B82F6', done: true });
+
+      // 오늘: 퀵 일정
+      addPreset(todayKey, { name: '헬스', type: 'quick', color: '#F59E0B', done: false });
+
+      // 내일: 독립 일정 (event)
+      const tmr = new Date(now); tmr.setDate(t+1);
+      const tmrKey = dk(tmr.getFullYear(), tmr.getMonth(), tmr.getDate());
+      addPreset(tmrKey, { name: '치과 예약', type: 'event', color: '#EF4444', done: false, time: '14:00' });
+
+      // 2일 후: 예약 업무
+      const d2 = new Date(now); d2.setDate(t+2);
+      const d2Key = dk(d2.getFullYear(), d2.getMonth(), d2.getDate());
+      addPreset(d2Key, { name: '포트폴리오 제출', type: 'scheduled', color: '#10B981', done: false, project: '포트폴리오 제작' });
+
+      // 4일 후: event
+      const d4 = new Date(now); d4.setDate(t+4);
+      const d4Key = dk(d4.getFullYear(), d4.getMonth(), d4.getDate());
+      addPreset(d4Key, { name: '스터디 발표', type: 'event', color: '#6366F1', done: false, time: '19:00' });
+
+      // 5일 후: quick
+      const d5 = new Date(now); d5.setDate(t+5);
+      const d5Key = dk(d5.getFullYear(), d5.getMonth(), d5.getDate());
+      addPreset(d5Key, { name: '영어 공부', type: 'quick', color: '#F59E0B', done: false });
+
+      // 어제: completed tasks
+      const yd = new Date(now); yd.setDate(t-1);
+      const ydKey = dk(yd.getFullYear(), yd.getMonth(), yd.getDate());
+      addPreset(ydKey, { name: '기말 레포트 작성', type: 'today', color: '#6366F1', done: true, project: '졸업 논문' });
+      addPreset(ydKey, { name: '독서', type: 'quick', color: '#F59E0B', done: true });
+
+      // 3일 전
+      const d3a = new Date(now); d3a.setDate(t-3);
+      const d3aKey = dk(d3a.getFullYear(), d3a.getMonth(), d3a.getDate());
+      addPreset(d3aKey, { name: '클라이언트 미팅', type: 'event', color: '#8B5CF6', done: false, time: '10:00', project: '프리랜스 프로젝트' });
+    }
+
+    function addPreset(key, task) {
+      if (!tasks[key]) tasks[key] = [];
+      tasks[key].push(task);
+    }
+
+    initPresets();
+
+    // ── Merge recurring into tasks for rendering ──
+    let recurCache = {};
+    function getTasksForDay(y, m, d) {
+      const key = dk(y, m, d);
+      const manual = tasks[key] || [];
+      // Get recurring (cached per month)
+      const cacheKey = `${y}-${m}`;
+      if (!recurCache[cacheKey]) recurCache[cacheKey] = getRecurringForMonth(y, m);
+      const recurForDay = recurCache[cacheKey][key] || [];
+      // Don't duplicate: skip recurring if manual already has same name
+      const manualNames = new Set(manual.map(t => t.name));
+      const filteredRecur = recurForDay.filter(r => !manualNames.has(r.name));
+      return [...manual, ...filteredRecur];
+    }
+
+    // ── Render Calendar ──
+    function renderCal() {
+      document.getElementById('cal-title').textContent = `${calYear}년 ${calMonth+1}월`;
+      const grid = document.getElementById('cal-grid');
+      grid.innerHTML = '';
+
+      // 요일 헤더
+      DAYS.forEach((d, i) => {
+        const el = document.createElement('div');
+        el.className = 'cal-dow' + (i===0?' sun':'') + (i===6?' sat':'');
+        el.textContent = d;
+        grid.appendChild(el);
+      });
+
+      const firstDay = new Date(calYear, calMonth, 1).getDay();
+      const lastDate = new Date(calYear, calMonth+1, 0).getDate();
+
+      // 빈 셀
+      for (let i = 0; i < firstDay; i++) {
+        const el = document.createElement('div');
+        el.className = 'cal-cell empty';
+        grid.appendChild(el);
+      }
+
+      // 날짜 셀
+      for (let d = 1; d <= lastDate; d++) {
+        const el = document.createElement('div');
+        const dow = (firstDay + d - 1) % 7;
+        let cls = 'cal-cell';
+        if (dow === 0) cls += ' sun';
+        if (dow === 6) cls += ' sat';
+        if (isToday(calYear, calMonth, d)) cls += ' today';
+        if (selectedDay === d && calYear === now.getFullYear() && calMonth === now.getMonth()
+            || selectedDay === d) cls += ' selected';
+        el.className = cls;
+
+        const dayEl = document.createElement('div');
+        dayEl.className = 'cal-day';
+        dayEl.textContent = d;
+        el.appendChild(dayEl);
+
+        // 업무 labels (like actual app)
+        const dayTasks = getTasksForDay(calYear, calMonth, d);
+        if (dayTasks.length > 0) {
+          const container = document.createElement('div');
+          container.className = 'cal-tasks';
+          const maxShow = 3;
+          dayTasks.slice(0, maxShow).forEach(t => {
+            const label = document.createElement('div');
+            label.className = 'cal-task-label';
+            const icon = t.done ? '✓' : (TYPE_META[t.type]?.icon || '●');
+            const bgColor = t.done ? '#F3F4F6' : hexToLight(t.color);
+            const textColor = t.done ? '#9CA3AF' : t.color;
+            label.style.background = bgColor;
+            label.style.color = textColor;
+            label.innerHTML = `<span class="t-icon">${icon}</span>${t.name}`;
+            if (t.done) label.style.textDecoration = 'line-through';
+            container.appendChild(label);
+          });
+          if (dayTasks.length > maxShow) {
+            const more = document.createElement('div');
+            more.className = 'cal-task-more';
+            more.textContent = `+${dayTasks.length - maxShow}`;
+            container.appendChild(more);
+          }
+          el.appendChild(container);
+        }
+
+        el.onclick = () => selectDay(d);
+        grid.appendChild(el);
+      }
+    }
+
+    function selectDay(d) {
+      selectedDay = d;
+      renderAll();
+    }
+
+    function calPrev() {
+      if (calMonth === 0) { calYear--; calMonth = 11; } else calMonth--;
+      selectedDay = null;
+      recurCache = {};
+      renderCal();
+      renderDetail();
+    }
+    function calNext() {
+      if (calMonth === 11) { calYear++; calMonth = 0; } else calMonth++;
+      selectedDay = null;
+      recurCache = {};
+      renderCal();
+      renderDetail();
+    }
+
+    function renderAll() {
+      renderCal();
+      renderDetail();
+      renderPanel();
+    }
+
+    // ── Render Detail (below calendar, like actual app) ──
+    function renderDetail() {
+      const title = document.getElementById('detail-title');
+      const todayTag = document.getElementById('detail-today-tag');
+      const list = document.getElementById('detail-list');
+
+      if (selectedDay === null) {
+        title.textContent = '날짜를 선택하세요';
+        todayTag.style.display = 'none';
+        list.innerHTML = '<div class="hint-msg">캘린더에서 날짜를 클릭하면<br>해당 날의 업무가 표시됩니다</div>';
+        return;
+      }
+
+      const dayTasks = getTasksForDay(calYear, calMonth, selectedDay);
+      const dow = new Date(calYear, calMonth, selectedDay).getDay();
+      const selIsToday = isToday(calYear, calMonth, selectedDay);
+
+      title.textContent = `${calYear}.${String(calMonth+1).padStart(2,'0')}.${String(selectedDay).padStart(2,'0')} (${DAYS[dow]})`;
+      todayTag.style.display = selIsToday ? 'inline' : 'none';
+
+      list.innerHTML = '';
+      if (dayTasks.length === 0) {
+        list.innerHTML = '<div class="hint-msg" style="padding:16px 0;">등록된 업무가 없습니다<br><span style="font-size:12px;">캘린더를 더블클릭하여 일정을 추가하세요</span></div>';
+      } else {
+        // Group by type (order: event, today, scheduled, recurring, quick, then done)
+        const pending = dayTasks.filter(t => !t.done);
+        const done = dayTasks.filter(t => t.done);
+
+        const typeOrder = ['event', 'today', 'scheduled', 'recurring', 'quick'];
+        const groups = {};
+        pending.forEach(t => {
+          const type = t.type || 'today';
+          if (!groups[type]) groups[type] = [];
+          groups[type].push(t);
+        });
+
+        typeOrder.forEach(type => {
+          if (!groups[type] || groups[type].length === 0) return;
+          const meta = TYPE_META[type];
+
+          const secTitle = document.createElement('p');
+          secTitle.style.cssText = `font-size:13px;font-weight:600;color:${meta.color};margin:10px 0 6px;`;
+          secTitle.textContent = `${meta.icon} ${meta.label}`;
+          list.appendChild(secTitle);
+
+          groups[type].forEach(t => {
+            const item = document.createElement('div');
+            item.style.cssText = `display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:${hexToLight(t.color)};border:1px solid ${t.color}33;border-left:4px solid ${t.color};margin-bottom:5px;cursor:pointer;transition:background .15s;`;
+            item.innerHTML = `
+              <div style="width:22px;height:22px;border-radius:7px;border:2.5px solid ${t.color};flex-shrink:0;"></div>
+              <div style="flex:1;min-width:0;">
+                <p style="font-size:14px;font-weight:600;">${t.name}</p>
+                ${t.project ? `<p style="font-size:12px;color:var(--text-muted);">${t.project}</p>` : ''}
+              </div>
+              ${t.time ? `<span style="font-size:12px;color:${t.color};font-weight:600;">${t.time}</span>` : ''}
+            `;
+            item.onclick = () => { t.done = true; renderAll(); };
+            list.appendChild(item);
+          });
+        });
+
+        if (done.length > 0) {
+          const secTitle = document.createElement('p');
+          secTitle.style.cssText = 'font-size:13px;font-weight:600;color:var(--done-green);margin:10px 0 6px;';
+          secTitle.textContent = `✓ 완료한 일`;
+          list.appendChild(secTitle);
+
+          done.forEach(t => {
+            const item = document.createElement('div');
+            item.style.cssText = `display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:#F9FAFB;border:1px solid var(--border);border-left:4px solid ${t.color}88;margin-bottom:5px;cursor:pointer;opacity:0.55;`;
+            item.innerHTML = `
+              <div style="width:22px;height:22px;border-radius:7px;background:var(--done-green);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div style="flex:1;min-width:0;">
+                <p style="font-size:14px;font-weight:600;text-decoration:line-through;color:var(--text-muted);">${t.name}</p>
+                ${t.project ? `<p style="font-size:12px;color:var(--text-muted);">${t.project}</p>` : ''}
+              </div>
+            `;
+            item.onclick = () => { t.done = false; renderAll(); };
+            list.appendChild(item);
+          });
+        }
+      }
+
+    }
+
+    // ── Add Task ──
+    function addTask() {
+      if (selectedDay === null) return;
+      const input = document.getElementById('add-input');
+      const name = input.value.trim();
+      if (!name) return;
+
+      const key = dk(calYear, calMonth, selectedDay);
+      if (!tasks[key]) tasks[key] = [];
+      const color = COLORS[tasks[key].length % COLORS.length];
+      tasks[key].push({ name, type: 'today', color, done: false });
+
+      input.value = '';
+      renderAll();
+      showToast(`"${name}" 추가 완료`);
+    }
+
+    // ── Schedule Quick Task (from panel) ──
+    function scheduleQuick(name) {
+      if (selectedDay === null) {
+        showToast('먼저 캘린더에서 날짜를 선택하세요');
+        return;
+      }
+      const key = dk(calYear, calMonth, selectedDay);
+      if (!tasks[key]) tasks[key] = [];
+      if (tasks[key].some(t => t.name === name)) {
+        showToast('이미 등록된 일정입니다');
+        return;
+      }
+      tasks[key].push({ name, type: 'quick', color: '#F59E0B', done: false });
+      renderCal();
+      renderDetail();
+      renderPanel();
+      showToast(`"${name}" ${calMonth+1}/${selectedDay}에 추가`);
+    }
+
+    // ── Tab System ──
+    let activeTab = 'today';
+    const TAB_COLORS = {
+      today: { bg: '#EF4444', shadow: '#EF444444' },
+      projects: { bg: 'var(--blue)', shadow: '#4F46E544' },
+      recurring: { bg: 'var(--done-green)', shadow: '#10B98144' },
+      quick: { bg: 'var(--quick-amber)', shadow: '#F59E0B44' },
+    };
+
+    function switchTab(tab) {
+      activeTab = tab;
+      // Update tab buttons
+      document.querySelectorAll('.db-tab-btn').forEach(btn => {
+        const t = btn.dataset.tab;
+        const isActive = t === tab;
+        const c = TAB_COLORS[t];
+        btn.style.background = isActive ? c.bg : '#fff';
+        btn.style.boxShadow = isActive ? `0 3px 12px ${c.shadow}` : 'none';
+        btn.querySelector('.tab-icon').style.color = isActive ? '#fff' : '';
+        btn.querySelector('.tab-label').style.color = isActive ? '#fff' : 'var(--text-primary)';
+      });
+      renderPanel();
+    }
+
+    // ── Render Side Panel ──
+    function renderPanel() {
+      const title = document.getElementById('panel-title');
+      const badge = document.getElementById('panel-badge');
+      const body = document.getElementById('panel-body');
+
+      if (activeTab === 'today') {
+        title.textContent = '오늘 할 일';
+        const allToday = getTasksForDay(now.getFullYear(), now.getMonth(), now.getDate());
+        const pending = allToday.filter(t => !t.done);
+        const done = allToday.filter(t => t.done);
+        badge.textContent = pending.length;
+        badge.style.display = '';
+
+        body.innerHTML = '';
+        if (allToday.length === 0) {
+          body.innerHTML = '<div class="hint-msg">프로젝트나 정기 업무에서<br>오늘 할 일을 추가하세요</div>';
+          return;
+        }
+
+        pending.forEach(t => {
+          const el = document.createElement('div');
+          el.className = 'panel-task';
+          el.style.background = hexToLight(t.color);
+          el.style.border = `1px solid ${t.color}33`;
+          el.innerHTML = `
+            <div style="position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:${t.color};"></div>
+            <div class="p-check" style="border:2.5px solid ${t.color};"></div>
+            <div style="flex:1;min-width:0;">
+              <div class="p-name">${t.name}</div>
+              ${t.project ? `<div class="p-sub">${t.project}</div>` : ''}
+            </div>
+            ${t.time ? `<span style="font-size:12px;color:var(--blue);font-weight:600;">${t.time}</span>` : ''}
+          `;
+          el.onclick = () => { t.done = true; renderAll(); };
+          body.appendChild(el);
+        });
+
+        if (done.length > 0) {
+          const sep = document.createElement('div');
+          sep.style.cssText = 'border-top:1px solid var(--border);margin:10px 0;padding-top:8px;';
+          sep.innerHTML = `<p style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">완료 (${done.length})</p>`;
+          body.appendChild(sep);
+
+          done.forEach(t => {
+            const el = document.createElement('div');
+            el.className = 'panel-task done';
+            el.style.background = '#F9FAFB';
+            el.style.border = '1px solid var(--border)';
+            el.innerHTML = `
+              <div style="position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:${t.color}88;"></div>
+              <div class="p-check" style="background:var(--done-green);"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div style="flex:1;min-width:0;">
+                <div class="p-name">${t.name}</div>
+                ${t.project ? `<div class="p-sub">${t.project}</div>` : ''}
+              </div>
+            `;
+            el.onclick = () => { t.done = false; renderAll(); };
+            body.appendChild(el);
+          });
+        }
+      }
+      else if (activeTab === 'projects') {
+        title.textContent = '프로젝트';
+        badge.style.display = 'none';
+        body.innerHTML = '';
+        const projects = [
+          { name: '졸업 논문', color: '#6366F1', progress: 65, dday: 14, tasks: ['논문 초안 검토', '참고문헌 정리', '지도교수 피드백 반영'] },
+          { name: '포트폴리오 제작', color: '#F59E0B', progress: 35, dday: 30, tasks: ['UI 디자인 수정', '포트폴리오 제출', '최종 검수'] },
+          { name: '프리랜스 프로젝트', color: '#10B981', progress: 80, dday: 7, tasks: ['클라이언트 미팅', '최종 납품'] },
+        ];
+        projects.forEach(p => {
+          const card = document.createElement('div');
+          card.style.cssText = `background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;border-left:4px solid ${p.color};`;
+          card.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <span style="font-size:15px;font-weight:700;">${p.name}</span>
+              <span style="font-size:12px;font-weight:700;color:${p.color};background:${hexToLight(p.color)};padding:2px 8px;border-radius:100px;">D-${p.dday}</span>
+            </div>
+            <div style="height:4px;background:#E5E7EB;border-radius:4px;overflow:hidden;margin-bottom:8px;">
+              <div style="width:${p.progress}%;height:100%;background:${p.color};border-radius:4px;"></div>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);">${p.tasks.map(t => `<div style="padding:2px 0;">· ${t}</div>`).join('')}</div>
+          `;
+          body.appendChild(card);
+        });
+      }
+      else if (activeTab === 'recurring') {
+        title.textContent = '정기 업무';
+        badge.style.display = 'none';
+        body.innerHTML = '';
+        const items = [
+          { name: '주간 보고 작성', schedule: '매주 월요일', color: '#10B981' },
+          { name: '팀 미팅', schedule: '격주 수요일', color: '#3B82F6' },
+          { name: '월간 정산', schedule: '매월 1일', color: '#8B5CF6' },
+          { name: '독서 모임', schedule: '매월 2째주 토요일', color: '#EC4899' },
+        ];
+        items.forEach(r => {
+          const el = document.createElement('div');
+          el.style.cssText = `display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:${hexToLight(r.color)};border:1px solid ${r.color}33;border-left:4px solid ${r.color};margin-bottom:6px;`;
+          el.innerHTML = `
+            <span style="font-size:16px;color:${r.color};">↻</span>
+            <div style="flex:1;">
+              <div style="font-size:14px;font-weight:600;">${r.name}</div>
+              <div style="font-size:12px;color:var(--text-muted);">${r.schedule}</div>
+            </div>
+          `;
+          body.appendChild(el);
+        });
+      }
+      else if (activeTab === 'quick') {
+        title.textContent = '퀵 일정';
+        badge.style.display = 'none';
+        body.innerHTML = '';
+        const quickItems = [
+          { name: '헬스', desc: '18:00~19:00' },
+          { name: '독서', desc: '30분' },
+          { name: '영어 공부', desc: '21:00~22:00' },
+        ];
+        const selLabel = selectedDay !== null ? `${calMonth+1}/${selectedDay}` : '날짜 선택 필요';
+        quickItems.forEach(q => {
+          const el = document.createElement('div');
+          el.className = 'db-quick-item';
+          el.innerHTML = `
+            <span class="q-dot"></span>
+            <div style="flex:1;">
+              <div>${q.name}</div>
+              <div style="font-size:10px;color:#B45309;font-weight:400;">${q.desc}</div>
+            </div>
+            <span style="font-size:11px;padding:3px 10px;background:var(--quick-amber);color:#fff;border-radius:100px;font-weight:700;">+${selLabel}</span>
+          `;
+          el.onclick = () => scheduleQuick(q.name);
+          body.appendChild(el);
+        });
+      }
+    }
+
+    // ── Toast ──
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    // ── Helpers ──
+    function hexToLight(hex) {
+      const r = parseInt(hex.slice(1,3),16);
+      const g = parseInt(hex.slice(3,5),16);
+      const b = parseInt(hex.slice(5,7),16);
+      return `rgba(${r},${g},${b},0.08)`;
+    }
+
+    function scrollTo(sel) {
+      document.querySelector(sel)?.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ── Init ──
+    document.getElementById('header-date').textContent = `${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${DAYS[now.getDay()]})`;
+    renderCal();
+    renderDetail();
+    renderPanel();
   </script>
 </body>
 </html>
