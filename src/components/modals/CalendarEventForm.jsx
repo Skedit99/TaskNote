@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function CalendarEventForm({ dateKey, dateLabel, projects, onAddIndependent, onAddToProject, onCancel, T }) {
+export default function CalendarEventForm({ dateKey, dateLabel, projects, quickTasks, existingEvents, onAddIndependent, onAddToProject, onScheduleQuick, onCancel, T }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [time, setTime] = useState("");
@@ -17,10 +17,65 @@ export default function CalendarEventForm({ dateKey, dateLabel, projects, onAddI
     else if (selectedProject) onAddToProject(selectedProject, name.trim(), desc, t, et);
   };
 
+  const isQuickScheduled = (qtId) => {
+    return (existingEvents || []).some((e) => e.quickTaskId === qtId && !e.deleted);
+  };
+
+  const safeQuickTasks = (quickTasks || []).filter((qt) => !qt.deleted);
+  const hasQuickTasks = safeQuickTasks.length > 0;
+
   return (
     <div>
-      <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>일정 추가</h3>
-      <p style={{ fontSize: 14, color: T.textMut, marginBottom: 16 }}>{dateLabel}</p>
+      <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+        {/* 왼쪽: 제목 */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>일정 추가</h3>
+          <p style={{ fontSize: 14, color: T.textMut, marginBottom: 0 }}>{dateLabel}</p>
+        </div>
+        {/* 오른쪽: 퀵 일정 패널 */}
+        {hasQuickTasks && (
+          <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ color: "#f59e0b", fontSize: 13, fontWeight: 700 }}>↯</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.textSec }}>퀵일정 등록</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, maxHeight: 68, overflowY: "auto", scrollbarWidth: "none", msOverflowStyle: "none" }} className="hide-scrollbar">
+              {safeQuickTasks.map((qt) => {
+                const scheduled = isQuickScheduled(qt.id);
+                return (
+                  <button
+                    key={qt.id}
+                    onClick={() => { if (!scheduled && onScheduleQuick) onScheduleQuick(qt.id); }}
+                    disabled={scheduled}
+                    title={scheduled ? "이미 이 날짜에 배치됨" : qt.desc || qt.name}
+                    style={{
+                      display: "flex", alignItems: "center",
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: `1.5px solid ${scheduled ? T.border : "#f59e0b55"}`,
+                      background: scheduled ? "transparent" : "#f59e0b0d",
+                      cursor: scheduled ? "not-allowed" : "pointer",
+                      opacity: scheduled ? 0.45 : 1,
+                      transition: "all .15s",
+                      whiteSpace: "nowrap",
+                      minWidth: 100,
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: scheduled ? T.textMut : "#b45309",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}>{qt.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 6 }}>일정 이름</label>
       <input style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.inputBorder}`, borderRadius: 10, fontSize: 16, outline: "none", background: T.surfaceBg, color: T.text, boxSizing: "border-box" }} value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="예: 회의, 마감 등" onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }} />
@@ -50,7 +105,7 @@ export default function CalendarEventForm({ dateKey, dateLabel, projects, onAddI
       <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textSec, marginBottom: 8, marginTop: 14 }}>일정 유형</label>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={() => setMode("independent")} style={{ flex: 1, padding: "12px", borderRadius: 10, border: `2px solid ${mode === "independent" ? T.primary : T.border}`, background: mode === "independent" ? T.primaryLight : T.cardBg, cursor: "pointer", textAlign: "center" }}>
-          <span style={{ fontSize: 22, display: "block" }}>★</span>
+          <span style={{ fontSize: 22, display: "block" }}>⚑</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: mode === "independent" ? T.primary : T.text }}>독립 일정</span>
         </button>
         <button onClick={() => setMode("project")} disabled={projects.length === 0} style={{ flex: 1, padding: "12px", borderRadius: 10, border: `2px solid ${mode === "project" ? T.primary : T.border}`, background: mode === "project" ? T.primaryLight : T.cardBg, cursor: projects.length ? "pointer" : "not-allowed", textAlign: "center", opacity: projects.length ? 1 : 0.4 }}>

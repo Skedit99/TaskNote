@@ -20,6 +20,7 @@ export default function Sidebar({ ctx }) {
     addRecurringToToday, addRecurringToDate, toggleRecurring, deleteRecurring,
     archiveProject, restoreProject, deleteProject, reorderProjects,
     hasNonTodaySelection, selectedDateKey, selectedDateLabel,
+    addQuickTask, editQuickTask, deleteQuickTask, scheduleQuickTask,
   } = ctx;
 
   // 프로젝트 드래그 정렬
@@ -34,6 +35,7 @@ export default function Sidebar({ ctx }) {
           { key: "today", label: "오늘 할 일", icon: "◎", color: T.warnText },
           { key: "projects", label: "프로젝트", icon: "◈", color: T.primary },
           { key: "recurring", label: "정기 업무", icon: "↻", color: T.doneText },
+          { key: "quick", label: "퀵 일정", icon: "↯", color: "#f59e0b" },
         ].map((tab) => (
           <button key={tab.key} onClick={() => setSideTab(sideTab === tab.key ? null : tab.key)}
             style={{ width: 56, minHeight: 80, border: "none", background: sideTab === tab.key ? tab.color : T.surfaceBg, borderRadius: 10, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, transition: "box-shadow .15s", boxShadow: sideTab === tab.key ? `0 3px 12px ${tab.color}44` : "none" }}>
@@ -271,7 +273,7 @@ export default function Sidebar({ ctx }) {
                       <div key={r.id} style={{ display: "flex", alignItems: "center", padding: "12px 14px", borderRadius: 12, background: T.cardBg, border: `1px solid ${T.border}`, marginBottom: 6 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontSize: 15, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</p>
-                          <p style={{ fontSize: 12, color: T.textMut }}>{type === "weekly" ? `${DAYS_KR[r.dayValue]}요일 · ${r.interval === 1 ? "매주" : r.interval === 2 ? "격주" : `${r.interval}주마다`}` : `매월 ${r.dayValue}일`}{r.time ? ` · ${r.time}` : ""}</p>
+                          <p style={{ fontSize: 12, color: T.textMut }}>{type === "weekly" ? `${DAYS_KR[r.dayValue]}요일 · ${r.interval === 1 ? "매주" : r.interval === 2 ? "격주" : `${r.interval}주마다`}` : r.monthlyMode === "nthWeekday" ? `매월 ${r.nthWeek}째 ${DAYS_KR[r.nthDayOfWeek]}요일` : r.dayValue === -1 ? "매월 말일" : `매월 ${r.dayValue}일`}{r.time ? ` · ${r.time}` : ""}</p>
                         </div>
                         <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
                           {hasNonTodaySelection && <button style={{ padding: "4px 10px", border: `1.5px solid ${T.accent}`, background: T.cardBg, color: T.accent, borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600 }} onClick={() => addRecurringToDate(r, selectedDateKey)}>+{selectedDateLabel}</button>}
@@ -302,6 +304,38 @@ export default function Sidebar({ ctx }) {
               })}
             </div>
           </>)}
+          {/* QUICK TASKS */}
+          {sideTab === "quick" && (<>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px 12px", flexShrink: 0 }}>
+              <h3 style={{ fontSize: 20, fontWeight: 700 }}>퀵 일정</h3>
+              <button style={{ width: 34, height: 34, border: "none", background: "linear-gradient(135deg,#f59e0b,#f97316)", color: "white", borderRadius: 10, cursor: "pointer", fontSize: 18, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px #f59e0b44" }}
+                onClick={() => setModal({ type: "addQuickTask" })}>+</button>
+            </div>
+            <p style={{ fontSize: 13, color: T.textMut, padding: "0 20px 10px", lineHeight: "18px" }}>반복 등록 가능한 일정입니다. 캘린더에서 날짜를 선택한 뒤 추가하세요.</p>
+            <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 20px" }}>
+              {(data.quickTasks || []).length === 0 && <p style={{ fontSize: 15, color: T.textMut, textAlign: "center", padding: 30 }}>퀵 일정을 추가하세요</p>}
+              {(data.quickTasks || []).map((qt) => (
+                <div key={qt.id} style={{ display: "flex", alignItems: "center", padding: "12px 14px", borderRadius: 12, background: T.cardBg, border: `1px solid ${T.border}`, marginBottom: 6 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 15, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{qt.name}</p>
+                    <p style={{ fontSize: 12, color: T.textMut }}>{qt.description ? qt.description.slice(0, 30) + (qt.description.length > 30 ? "..." : "") : "설명 없음"}{qt.time ? ` · ${qt.time}${qt.endTime ? `~${qt.endTime}` : ""}` : ""}</p>
+                  </div>
+                  <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+                    {selectedDateKey && (
+                      <button style={{ padding: "4px 10px", border: "1.5px solid #f59e0b", background: T.cardBg, color: "#f59e0b", borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+                        onClick={() => {
+                          const ok = scheduleQuickTask(qt.id, selectedDateKey);
+                          if (!ok) setModal({ type: "alert", message: "이미 등록된 일정입니다." });
+                        }}>+{selectedDateLabel}</button>
+                    )}
+                    <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", borderRadius: 7, fontSize: 15, color: T.textMut }} onClick={() => setModal({ type: "editQuickTask", quickTask: qt })}>✎</button>
+                    <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", borderRadius: 7, fontSize: 15, color: "#ef4444" }} onClick={() => setModal({ type: "confirm", message: `"${qt.name}" 퀵 일정을 삭제하시겠습니까?`, onConfirm: () => { deleteQuickTask(qt.id); setModal(null); } })}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>)}
+
         </div>
       )}
     </div>

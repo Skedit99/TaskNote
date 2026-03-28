@@ -15,7 +15,7 @@ import Sidebar from "./components/Sidebar";
 // 모달
 import SettingsModal from "./components/modals/SettingsModal";
 import CalendarEventForm from "./components/modals/CalendarEventForm";
-import { ProjectForm, SubtaskForm, EditTaskForm, RecurringForm, ConvertEventForm } from "./components/modals/FormComponents";
+import { ProjectForm, SubtaskForm, EditTaskForm, RecurringForm, ConvertEventForm, QuickTaskForm } from "./components/modals/FormComponents";
 
 // ── 약관 동의 화면 ──
 function TermsAgreement({ onAgree }) {
@@ -212,8 +212,11 @@ export default function TaskManager() {
             {modal.type === "addCalendarEvent" && (
               <CalendarEventForm
                 dateKey={modal.dateKey} dateLabel={modal.dateLabel} projects={activeProjects}
+                quickTasks={data.quickTasks}
+                existingEvents={(data.events || []).filter((e) => e.date === modal.dateKey)}
                 onAddIndependent={(name, desc, time, endTime) => { addEvent(name, desc, modal.dateKey, time, endTime); setModal(null); }}
                 onAddToProject={(projectId, name, desc, time, endTime) => { addEventAsSubtask(projectId, name, desc, modal.dateKey, time, endTime); setModal(null); }}
+                onScheduleQuick={(qtId) => { ctx.scheduleQuickTask(qtId, modal.dateKey); setModal(null); }}
                 onCancel={() => setModal(null)} T={T}
               />
             )}
@@ -224,8 +227,41 @@ export default function TaskManager() {
             {modal.type === "addSubtask" && <SubtaskForm parentId={modal.parentId} onSubmit={(n, desc, time, endTime) => { addSubtask(activeProject, n, modal.parentId, desc, time, endTime); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
             {modal.type === "editTask" && <EditTaskForm currentName={modal.currentName} currentDesc={modal.currentDesc} currentTime={modal.currentTime} currentEndTime={modal.currentEndTime} onSubmit={(name, desc, time, endTime) => { editSubtask(modal.projectId, modal.taskId, name); editSubtaskDesc(modal.projectId, modal.taskId, desc); editSubtaskTime(modal.projectId, modal.taskId, time, endTime); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
 
-            {modal.type === "addRecurring" && <RecurringForm type={modal.recurType} onSubmit={(n, dv, time, intv, sd, ed) => { addRecurring(n, modal.recurType, dv, time, intv, sd, ed); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
-            {modal.type === "editRecurring" && <RecurringForm type={modal.recurring.type} initial={modal.recurring} onSubmit={(n, dv, time, intv, sd, ed) => { editRecurring(modal.recurring.id, n, dv, time, intv, sd, ed); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "addRecurring" && <RecurringForm type={modal.recurType} onSubmit={(n, dv, time, intv, sd, ed, monthlyOpts) => { addRecurring(n, modal.recurType, dv, time, intv, sd, ed, monthlyOpts); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "editRecurring" && <RecurringForm type={modal.recurring.type} initial={modal.recurring} onSubmit={(n, dv, time, intv, sd, ed, monthlyOpts) => { editRecurring(modal.recurring.id, n, dv, time, intv, sd, ed, monthlyOpts); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+
+            {modal.type === "addQuickTask" && <QuickTaskForm onSubmit={(n, desc, time, endTime) => { ctx.addQuickTask(n, desc, time, endTime); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+            {modal.type === "editQuickTask" && <QuickTaskForm initial={modal.quickTask} onSubmit={(n, desc, time, endTime) => { ctx.editQuickTask(modal.quickTask.id, n, desc, time, endTime); setModal(null); }} onCancel={() => setModal(null)} T={T} />}
+
+            {modal.type === "editQuickEventTime" && (() => {
+              const [t, setT] = [modal._time ?? modal.currentTime, (v) => { modal._time = v; setModal({...modal}); }];
+              const [et, setET] = [modal._endTime ?? modal.currentEndTime, (v) => { modal._endTime = v; setModal({...modal}); }];
+              return (
+                <div>
+                  <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>⚡ 퀵 일정 시간 변경</h3>
+                  <p style={{ fontSize: 15, color: T.textSec, marginBottom: 20 }}>{modal.eventName}</p>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 13, fontWeight: 600, color: T.textSec, marginBottom: 6, display: "block" }}>시작 시간</label>
+                      <input type="time" defaultValue={modal.currentTime || modal.defaultTime} onChange={(e) => { modal._time = e.target.value; }} style={{ width: "100%", padding: "10px 12px", border: `1px solid ${T.border}`, borderRadius: 10, fontSize: 15, fontFamily: "inherit", background: T.cardBg, color: T.text }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 13, fontWeight: 600, color: T.textSec, marginBottom: 6, display: "block" }}>종료 시간</label>
+                      <input type="time" defaultValue={modal.currentEndTime || modal.defaultEndTime} onChange={(e) => { modal._endTime = e.target.value; }} style={{ width: "100%", padding: "10px 12px", border: `1px solid ${T.border}`, borderRadius: 10, fontSize: 15, fontFamily: "inherit", background: T.cardBg, color: T.text }} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                    <button style={{ padding: "10px 22px", border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 500, color: T.textSec }} onClick={() => setModal(null)}>취소</button>
+                    <button style={{ padding: "10px 22px", border: "none", background: `linear-gradient(135deg,#f59e0b,#d97706)`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600 }} onClick={() => {
+                      const timeEl = document.querySelector('input[type="time"]');
+                      const endEl = document.querySelectorAll('input[type="time"]')[1];
+                      ctx.updateEventTime(modal.eventId, timeEl?.value || "", endEl?.value || "");
+                      setModal(null);
+                    }}>저장</button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {modal.type === "convertEvent" && (
               <ConvertEventForm

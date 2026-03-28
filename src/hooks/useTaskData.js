@@ -31,7 +31,7 @@ export default function useTaskData() {
   const [expandedToday, setExpandedToday] = useState({});
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(new Date().getDate());
   const [holidays, setHolidays] = useState({});
 
   // 위젯 모드 관련
@@ -117,6 +117,15 @@ export default function useTaskData() {
       }
     });
     gcal.create({ localId: evId, summary: name, description: desc || "", date: dateKey, time: time || "", endTime: endTime || "", type: "event" });
+  };
+
+  // ── 이벤트 시간 변경 ──
+  const updateEventTime = (id, time, endTime) => {
+    updateData((d) => {
+      if (!d.events) return;
+      const ev = d.events.find((e) => e.id === id);
+      if (ev) { ev.time = time || ""; ev.endTime = endTime || ""; ev.updatedAt = Date.now(); }
+    });
   };
 
   // ── 이벤트 삭제 (Tombstone / Soft Delete) ──
@@ -206,6 +215,44 @@ export default function useTaskData() {
     // Google Calendar 매핑: 기존 이벤트 매핑 삭제 → 새 subtask로 매핑 생성
     gcal.del(eventId);
     gcal.create({ localId: newId, summary: ev.name, description: ev.description || "", date: ev.date, time: ev.time || "", type: "scheduled" });
+  };
+
+  // ── 퀵 일정 ──
+  const addQuickTask = (name, desc, time, endTime) => {
+    const id = generateId();
+    updateData((d) => {
+      if (!d.quickTasks) d.quickTasks = [];
+      d.quickTasks.push({ id, name, description: desc || "", time: time || "", endTime: endTime || "", updatedAt: Date.now() });
+    });
+  };
+
+  const editQuickTask = (id, name, desc, time, endTime) => {
+    updateData((d) => {
+      const q = (d.quickTasks || []).find((x) => x.id === id);
+      if (q) { q.name = name; q.description = desc || ""; q.time = time || ""; q.endTime = endTime || ""; q.updatedAt = Date.now(); }
+    });
+  };
+
+  const deleteQuickTask = (id) => {
+    updateData((d) => { d.quickTasks = (d.quickTasks || []).filter((x) => x.id !== id); });
+  };
+
+  const scheduleQuickTask = (quickTaskId, dateKey) => {
+    const qt = (data.quickTasks || []).find((x) => x.id === quickTaskId);
+    if (!qt) return false;
+    // 같은 날짜에 같은 퀵 일정이 이미 있는지 체크
+    const existing = (data.events || []).find((e) => e.quickTaskId === quickTaskId && e.date === dateKey && !e.deleted);
+    if (existing) return false; // 중복
+    const evId = generateId();
+    updateData((d) => {
+      if (!d.events) d.events = [];
+      d.events.push({ id: evId, name: qt.name, description: qt.description || "", date: dateKey, time: qt.time || "", endTime: qt.endTime || "", quickTaskId, updatedAt: Date.now() });
+      if (dateKey === todayKey()) {
+        d.todayTasks.push({ projectId: "event", taskId: evId, completed: false, time: qt.time || "", updatedAt: Date.now() });
+      }
+    });
+    gcal.create({ localId: evId, summary: qt.name, description: qt.description || "", date: dateKey, time: qt.time || "", endTime: qt.endTime || "", type: "event" });
+    return true;
   };
 
   // ── 캘린더 헬퍼 ──
@@ -474,9 +521,12 @@ export default function useTaskData() {
     addToScheduled, deleteScheduled, moveScheduledToToday, getScheduledForDay,
 
     // 이벤트
-    addEvent, deleteEvent, getEventsForDay,
+    addEvent, deleteEvent, updateEventTime, getEventsForDay,
     handleCalendarDoubleClick, addEventAsSubtask,
     convertEventToSubtask, fetchGcalEvents,
+
+    // 퀵 일정
+    addQuickTask, editQuickTask, deleteQuickTask, scheduleQuickTask,
 
     // 정기 업무
     addRecurring, editRecurring, deleteRecurring, toggleRecurring, addRecurringToToday,

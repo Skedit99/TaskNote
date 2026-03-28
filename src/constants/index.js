@@ -15,6 +15,7 @@ export const defaultData = {
   recurringAdds: {},
   scheduled: {},
   events: [],
+  quickTasks: [],
 };
 
 export const defaultMiniSettings = {

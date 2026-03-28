@@ -167,7 +167,7 @@ export default function MiniCalendar({ ctx }) {
               const dayToday = getTodayTasksForDay(day, year, month).filter((t) => !dayCompIds.has(t.taskId));
               const dayTodayIds = new Set(dayToday.map((t) => t.taskId));
               const daySched = getScheduledForDay(day, year, month).filter((s) => !dayCompIds.has(s.taskId) && !dayTodayIds.has(s.taskId));
-              const dayRecur = getRecurringForDay(day, year, month).filter((r) => !dayCompIds.has(r.id));
+              const dayRecur = getRecurringForDay(day, year, month).filter((r) => !dayCompIds.has(r.id) && !dayTodayIds.has(r.id));
               const dayEvents = getEventsForDay(day, year, month).filter((e) => !dayCompIds.has(e.id) && !dayTodayIds.has(e.id));
 
               const pending = [
@@ -204,7 +204,7 @@ export default function MiniCalendar({ ctx }) {
                     return (
                       <div key={ci} style={{ fontSize: 13, padding: "5px 8px", borderRadius: 6, background: pc.light, border: `1px solid ${isEv ? T.accent + "33" : pc.light}`, borderLeft: `3px solid ${pc.color}`, marginBottom: 3, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, p.item)}>
                         <div style={{ width: 16, height: 16, borderRadius: 5, border: "2px solid #9ca3af", flexShrink: 0 }} />
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{isEv ? "★ " : ""}{p.name}</span>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{isEv ? "⚑ " : ""}{p.name}</span>
                       </div>
                     );
                   })}

@@ -33,6 +33,8 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
   const [gcalError, setGcalError] = useState("");
   const [dataPath, setDataPath] = useState("");
   const [isCustomPath, setIsCustomPath] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState(null); // null | "checking" | "downloading" | "downloaded" | "latest"
+  const [updatePercent, setUpdatePercent] = useState(0);
 
   useEffect(() => {
     if (isElectron) {
@@ -42,6 +44,12 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
       }
       if (window.electronAPI.getDataPath) {
         window.electronAPI.getDataPath().then((r) => { setDataPath(r.path); setIsCustomPath(r.isCustom); });
+      }
+      if (window.electronAPI.onUpdateProgress) {
+        window.electronAPI.onUpdateProgress((pct) => setUpdatePercent(pct));
+      }
+      if (window.electronAPI.onUpdateDownloaded) {
+        window.electronAPI.onUpdateDownloaded(() => setUpdateStatus("downloaded"));
       }
     } else { setAutoLaunchLoaded(true); }
   }, []);
@@ -291,18 +299,24 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
                 <p style={{ fontSize: 13, color: T.textSec, margin: 0 }}>현재 버전: {appVersion}</p>
                 <p style={{ fontSize: 12, color: T.textMut, margin: "2px 0 0" }}>최신 버전을 확인하고 업데이트를 설치합니다</p>
               </div>
-              <button onClick={async () => {
-                if (!isElectron) return;
-                const result = await window.electronAPI.checkForUpdate();
-                if (result?.updateAvailable) {
-                  alert("새로운 업데이트가 발견되었습니다. 다운로드를 시작합니다.");
-                  window.electronAPI.downloadUpdate();
-                } else {
-                  alert("현재 최신 버전을 사용 중입니다.");
-                }
-              }} style={{ padding: "8px 16px", border: `1px solid ${T.primary}`, background: "transparent", color: T.primary, borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                업데이트 확인
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {updateStatus === "latest" && <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 600 }}>✓ 이미 최신 버전입니다</span>}
+                <button onClick={async () => {
+                  if (!isElectron) return;
+                  setUpdateStatus("checking");
+                  const result = await window.electronAPI.checkForUpdate();
+                  if (result?.updateAvailable) {
+                    setUpdateStatus("downloading");
+                    setUpdatePercent(0);
+                    window.electronAPI.downloadUpdate();
+                  } else {
+                    setUpdateStatus("latest");
+                    setTimeout(() => setUpdateStatus(null), 3000);
+                  }
+                }} disabled={updateStatus === "downloading" || updateStatus === "checking"} style={{ padding: "8px 16px", border: `1px solid ${T.primary}`, background: "transparent", color: T.primary, borderRadius: 8, cursor: updateStatus ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, opacity: updateStatus === "downloading" ? 0.5 : 1 }}>
+                  {updateStatus === "checking" ? "확인 중..." : updateStatus === "downloading" ? "다운로드 중..." : "업데이트 확인"}
+                </button>
+              </div>
             </div>
           </div>
           <div style={{ padding: "20px", background: T.surfaceBg, borderRadius: 12, border: `1px solid ${T.border}` }}>
@@ -335,6 +349,33 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
         <button style={{ padding: "10px 22px", border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 500, color: T.textSec }} onClick={onClose}>취소</button>
         <button style={{ padding: "10px 22px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 600, boxShadow: `0 2px 8px ${T.primary}44` }} onClick={handleApply}>적용</button>
       </div>
+
+      {/* 업데이트 다운로드 프로그레스 모달 */}
+      {(updateStatus === "downloading" || updateStatus === "downloaded") && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
+          <div style={{ background: T.cardBg, borderRadius: 16, padding: "32px 36px", width: 360, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", animation: "modalIn .2s ease" }}>
+            {updateStatus === "downloading" ? (
+              <>
+                <p style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>업데이트 다운로드 중</p>
+                <p style={{ fontSize: 13, color: T.textMut, margin: "0 0 20px" }}>잠시만 기다려주세요...</p>
+                <div style={{ width: "100%", height: 8, background: T.border, borderRadius: 4, overflow: "hidden", marginBottom: 10 }}>
+                  <div style={{ width: `${updatePercent}%`, height: "100%", background: `linear-gradient(90deg, ${T.primary}, ${T.accent})`, borderRadius: 4, transition: "width 0.3s ease" }} />
+                </div>
+                <p style={{ fontSize: 24, fontWeight: 800, color: T.primary, margin: 0 }}>{updatePercent}%</p>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>다운로드 완료!</p>
+                <p style={{ fontSize: 13, color: T.textMut, margin: "0 0 20px" }}>앱을 재시작하면 업데이트가 적용됩니다</p>
+                <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                  <button onClick={() => setUpdateStatus(null)} style={{ padding: "10px 20px", border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 10, cursor: "pointer", fontSize: 14, fontWeight: 500, color: T.textSec }}>나중에</button>
+                  <button onClick={() => { if (isElectron) window.electronAPI.installUpdate(); }} style={{ padding: "10px 20px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 14, fontWeight: 600, boxShadow: `0 2px 8px ${T.primary}44` }}>지금 재시작</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

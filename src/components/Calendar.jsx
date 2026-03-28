@@ -9,7 +9,7 @@ export default function Calendar({ ctx }) {
     activeProjects, setModal,
     getColorForProjectId, completeForDate, uncompleteForDate,
     removeFromToday, deleteScheduled, skipRecurringForDate, handleCalendarDoubleClick,
-    calendarRange, getHolidayForDay,
+    calendarRange, getHolidayForDay, data,
   } = ctx;
 
   const CheckBox = ({ done, onClick, color }) => (
@@ -33,11 +33,13 @@ export default function Calendar({ ctx }) {
     const daySched = getScheduledForDay(day, year, month).filter((s) => !dayCompIds.has(s.taskId) && !dayTodayIds.has(s.taskId));
     const dayRecur = getRecurringForDay(day, year, month).filter((r) => !dayCompIds.has(r.id));
     const dayEvents = getEventsForDay(day, year, month).filter((e) => !dayTodayIds.has(e.id) && !dayCompIds.has(e.id));
+    const dayQuickEvents = dayEvents.filter((e) => e.quickTaskId);
+    const dayRegularEvents = dayEvents.filter((e) => !e.quickTaskId);
 
     // 날짜 범위 모드의 지난 날만 완료 항목 숨기기
     const visibleComp = (isPast && hidePastComp) ? [] : dayComp;
 
-    const hasContent = dayEvents.length > 0 || dayToday.length > 0 || visibleComp.length > 0 || dayRecur.length > 0 || daySched.length > 0;
+    const hasContent = dayRegularEvents.length > 0 || dayQuickEvents.length > 0 || dayToday.length > 0 || visibleComp.length > 0 || dayRecur.length > 0 || daySched.length > 0;
     if (!hasContent) return null;
 
     return (
@@ -50,9 +52,9 @@ export default function Calendar({ ctx }) {
           </h3>
         )}
 
-        {dayEvents.length > 0 && <div style={{ marginBottom: 14 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: T.accent, marginBottom: 8 }}>★ 독립 일정 <span style={{ fontSize: 12, fontWeight: 400, color: T.textMut }}>(더블클릭하여 프로젝트에 편입)</span></p>
-          {dayEvents.map((ev, i) => (
+        {dayRegularEvents.length > 0 && <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: T.accent, marginBottom: 8 }}>⚑ 독립 일정 <span style={{ fontSize: 12, fontWeight: 400, color: T.textMut }}>(더블클릭하여 프로젝트에 편입)</span></p>
+          {dayRegularEvents.map((ev, i) => (
             <div key={i}
               onDoubleClick={(e) => {
                 e.stopPropagation();
@@ -75,7 +77,7 @@ export default function Calendar({ ctx }) {
         </div>}
 
         {dayToday.length > 0 && <div style={{ marginBottom: 14 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: T.warnText, marginBottom: 8 }}>● 오늘 할 일</p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: T.warnText, marginBottom: 8 }}>◎ 오늘 할 일</p>
           {dayToday.map((t, i) => { const pc = getColorForProjectId(t.projectId); return (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: pc.light + "66", border: `1px solid ${pc.color}33`, borderLeft: `4px solid ${pc.color}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: t.projectId, taskId: t.taskId })}>
               <CheckBox done={false} color={pc.color} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{t.taskName}</p><p style={{ fontSize: 13, color: T.textMut }}>{t.projectName}</p></div>
@@ -96,8 +98,29 @@ export default function Calendar({ ctx }) {
           <p style={{ fontSize: 14, fontWeight: 600, color: T.primary, marginBottom: 8 }}>↻ 정기 업무</p>
           {dayRecur.map((r, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: T.primaryLight + "66", border: `1px solid ${T.primaryLight}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: "recurring", taskId: r.id })}>
-              <CheckBox done={false} /><div style={{ flex: 1 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{r.name}</p><p style={{ fontSize: 13, color: T.textMut }}>{r.time || ""} {r.type === "weekly" ? (r.interval === 1 ? "매주" : r.interval === 2 ? "격주" : `${r.interval}주`) : `매월 ${r.dayValue}일`}</p></div>
+              <CheckBox done={false} /><div style={{ flex: 1 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{r.name}</p><p style={{ fontSize: 13, color: T.textMut }}>{r.time || ""} {r.type === "weekly" ? (r.interval === 1 ? "매주" : r.interval === 2 ? "격주" : `${r.interval}주`) : r.monthlyMode === "nthWeekday" ? `매월 ${r.nthWeek}째 ${["일","월","화","수","목","금","토"][r.nthDayOfWeek]}요일` : r.dayValue === -1 ? "매월 말일" : `매월 ${r.dayValue}일`}</p></div>
               <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", fontSize: 15, color: T.textMut }} onClick={(e) => { e.stopPropagation(); skipRecurringForDate(dateKey, r.id); }}>✕</button>
+            </div>
+          ))}
+        </div>}
+
+        {dayQuickEvents.length > 0 && <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#f59e0b", marginBottom: 8 }}>↯ 퀵 일정 <span style={{ fontSize: 12, fontWeight: 400, color: T.textMut }}>(더블클릭하여 시간 변경)</span></p>
+          {dayQuickEvents.map((ev, i) => (
+            <div key={i}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                const qt = (data?.quickTasks || []).find((q) => q.id === ev.quickTaskId);
+                setModal({ type: "editQuickEventTime", eventId: ev.id, eventName: ev.name, currentTime: ev.time || "", currentEndTime: ev.endTime || "", defaultTime: qt?.time || "", defaultEndTime: qt?.endTime || "" });
+              }}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: "#f59e0b15", border: "1px solid #f59e0b33", borderLeft: "4px solid #f59e0b", marginBottom: 6, cursor: "pointer", transition: "background .15s" }}>
+              <CheckBox done={false} color="#f59e0b" onClick={(e) => { e.stopPropagation(); completeForDate(dateKey, { projectId: "event", taskId: ev.id }); }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 15, fontWeight: 600 }}>{ev.name}</p>
+                {ev.description && <p style={{ fontSize: 13, color: T.textMut, marginTop: 2 }}>{ev.description}</p>}
+                {ev.time && <p style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600, marginTop: 2 }}>{ev.time}{ev.endTime ? ` ~ ${ev.endTime}` : ""}</p>}
+              </div>
+              <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", fontSize: 15, color: T.textMut }} onClick={(e) => { e.stopPropagation(); deleteEvent(ev.id); }}>✕</button>
             </div>
           ))}
         </div>}
@@ -138,9 +161,9 @@ export default function Calendar({ ctx }) {
           const compIds = new Set(comp.map((c) => c.taskId));
           const filteredSched = sched.filter((s) => !todayIds.has(s.taskId) && !compIds.has(s.taskId));
           const filteredEvents = events.filter((e) => !todayIds.has(e.id) && !compIds.has(e.id));
-          const filteredRecur = recur.filter((r) => !compIds.has(r.id));
+          const filteredRecur = recur.filter((r) => !compIds.has(r.id) && !todayIds.has(r.id));
           const allItems = [
-            ...filteredEvents.map((e) => ({ type: "event", name: e.name, pid: "event" })),
+            ...filteredEvents.map((e) => ({ type: e.quickTaskId ? "quick" : "event", name: e.name, pid: "event" })),
             ...todayTasks.map((t) => ({ type: "today", name: t.taskName, pid: t.projectId })),
             ...filteredSched.map((s) => ({ type: "sched", name: s.taskName, pid: s.projectId })),
             ...comp.map((c) => ({ type: "done", name: c.taskName, pid: c.projectId })),
@@ -168,11 +191,14 @@ export default function Calendar({ ctx }) {
                     const isRecur = item.type === "recur";
                     let bg, clr;
                     const isEvent = item.type === "event";
-                    if (pc) { bg = pc.light; clr = isDone ? pc.color + "99" : pc.color; }
+                    if (isDone && pc) { bg = pc.light + "88"; clr = pc.color + "55"; }
+                    else if (isDone) { bg = (T.border || '#E5E7EB') + "66"; clr = T.textMut + "88"; }
+                    else if (pc) { bg = pc.light; clr = pc.color; }
                     else if (isRecur) { bg = T.primaryLight; clr = T.primary; }
                     else if (isEvent) { bg = T.accent + "22"; clr = T.accent; }
-                    else { bg = isDone ? T.warnBg : T.warnBg; clr = isDone ? T.warnText : T.warnText; }
-                    const prefix = isDone ? "✓ " : isRecur ? "↻ " : isEvent ? "★ " : item.type === "sched" ? "◇ " : "● ";
+                    else if (item.type === "quick") { bg = "#f59e0b22"; clr = "#f59e0b"; }
+                    else { bg = T.warnBg; clr = T.warnText; }
+                    const prefix = isDone ? "✓ " : isRecur ? "↻ " : item.type === "quick" ? "↯ " : isEvent ? "⚑ " : item.type === "sched" ? "◇ " : "◎ ";
                     return <div key={ci} style={{ fontSize: 11, padding: "2px 4px", borderRadius: 4, background: bg, color: clr, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "16px", fontWeight: 600 }}>{prefix}{item.name}</div>;
                   })}
                   {allItems.length > (holiday ? 2 : 3) && <span style={{ fontSize: 10, color: T.textMut }}>+{allItems.length - (holiday ? 2 : 3)}</span>}

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Electron App",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["electron", "."],
+      "port": 0
+    },
+    {
+      "name": "Landing Page",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "landing", "-l", "3000", "--no-clipboard"],
+      "port": 3000
+    }
+  ]
+}

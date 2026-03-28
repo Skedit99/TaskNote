@@ -799,7 +799,10 @@ ipcMain.handle('check-for-update', async () => {
   if (isDev) return { updateAvailable: false };
   try {
     const result = await autoUpdater.checkForUpdates();
-    return { updateAvailable: !!result?.updateInfo };
+    const currentVersion = app.getVersion();
+    const latestVersion = result?.updateInfo?.version;
+    const available = !!(latestVersion && latestVersion !== currentVersion);
+    return { updateAvailable: available, latestVersion };
   } catch (e) {
     console.error('[AutoUpdater] 확인 실패:', e.message);
     return { updateAvailable: false, error: e.message };

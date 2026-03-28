@@ -1,7 +1,17 @@
 ﻿import { generateId, todayKey, weeksBetween } from "../utils/helpers";
 
-// ?뺢린?낅Т??誘몃옒 ?좎쭨瑜?GCal???쇨큵 push
-function pushRecurringFutureDates(gcal, recId, name, type, dayValue, time, interval, startDate, endDate) {
+// nth weekday helper: N번째 주 특정 요일의 날짜 (없으면 null)
+function getNthWeekdayOfMonth(year, month, nthWeek, dayOfWeek) {
+  const firstDay = new Date(year, month, 1);
+  let firstOccurrence = firstDay.getDay() <= dayOfWeek
+    ? 1 + (dayOfWeek - firstDay.getDay())
+    : 1 + (7 - firstDay.getDay() + dayOfWeek);
+  const targetDay = firstOccurrence + (nthWeek - 1) * 7;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return targetDay <= lastDay ? targetDay : null;
+}
+
+function pushRecurringFutureDates(gcal, recId, name, type, dayValue, time, interval, startDate, endDate, monthlyOpts) {
   const pad = (n) => String(n).padStart(2, "0");
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const maxDate = new Date(today); maxDate.setMonth(maxDate.getMonth() + 6);
@@ -26,11 +36,18 @@ function pushRecurringFutureDates(gcal, recId, name, type, dayValue, time, inter
       cursor.setDate(cursor.getDate() + (intv * 7));
     }
   } else if (type === "monthly") {
+    const isNthWeekday = monthlyOpts?.monthlyMode === "nthWeekday";
     cursor.setDate(1);
     while (cursor <= limit) {
-      const lastDay = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
-      if (dayValue <= lastDay) {
-        const d = new Date(cursor.getFullYear(), cursor.getMonth(), dayValue);
+      let targetDay;
+      if (isNthWeekday) {
+        targetDay = getNthWeekdayOfMonth(cursor.getFullYear(), cursor.getMonth(), monthlyOpts.nthWeek, monthlyOpts.nthDayOfWeek);
+      } else {
+        const lastDay = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+        targetDay = dayValue === -1 ? lastDay : (dayValue <= lastDay ? dayValue : null);
+      }
+      if (targetDay) {
+        const d = new Date(cursor.getFullYear(), cursor.getMonth(), targetDay);
         if (d >= today && d <= limit) {
           const dateKey = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
           gcal.create({ localId: `recurring:${recId}:${dateKey}`, summary: name, description: "", date: dateKey, time: time || "", type: "recurring" });
@@ -42,18 +59,21 @@ function pushRecurringFutureDates(gcal, recId, name, type, dayValue, time, inter
 }
 
 export function createRecurringActions({ data, updateData, gcal }) {
-  const addRecurring = (name, type, dayValue, time, interval, startDate, endDate) => {
+  const addRecurring = (name, type, dayValue, time, interval, startDate, endDate, monthlyOpts) => {
     const recId = generateId();
     updateData((d) => {
       const entry = { id: recId, name, type, dayValue, time: time || "", interval: interval || 1, startDate: startDate || todayKey(), active: true, updatedAt: Date.now() };
       if (endDate) entry.endDate = endDate;
+      if (type === "monthly" && monthlyOpts?.monthlyMode === "nthWeekday") {
+        entry.monthlyMode = "nthWeekday"; entry.nthWeek = monthlyOpts.nthWeek; entry.nthDayOfWeek = monthlyOpts.nthDayOfWeek;
+      }
       d.recurring.push(entry);
     });
     // ?ㅻ뒛遺??endDate(?먮뒗 6媛쒖썡)源뚯? GCal??push
-    pushRecurringFutureDates(gcal, recId, name, type, dayValue, time, interval, startDate || todayKey(), endDate);
+    pushRecurringFutureDates(gcal, recId, name, type, dayValue, time, interval, startDate || todayKey(), endDate, monthlyOpts);
   };
 
-  const editRecurring = (id, name, dayValue, time, interval, startDate, endDate) => {
+  const editRecurring = (id, name, dayValue, time, interval, startDate, endDate, monthlyOpts) => {
     const oldRec = data.recurring.find((x) => x.id === id);
     updateData((d) => {
       const r = d.recurring.find((x) => x.id === id);
@@ -61,6 +81,9 @@ export function createRecurringActions({ data, updateData, gcal }) {
         r.name = name; r.dayValue = dayValue; r.time = time || ""; r.interval = interval || 1;
         r.startDate = startDate || r.startDate || todayKey(); r.updatedAt = Date.now();
         if (endDate) r.endDate = endDate; else delete r.endDate;
+        if (r.type === "monthly" && monthlyOpts?.monthlyMode === "nthWeekday") {
+          r.monthlyMode = "nthWeekday"; r.nthWeek = monthlyOpts.nthWeek; r.nthDayOfWeek = monthlyOpts.nthDayOfWeek;
+        } else { delete r.monthlyMode; delete r.nthWeek; delete r.nthDayOfWeek; }
       }
     });
     // 湲곗〈 誘몃옒 ?대깽????젣 ???덈줈 push
@@ -80,7 +103,7 @@ export function createRecurringActions({ data, updateData, gcal }) {
       if (delIds.length > 0) gcal.delMultiple(delIds);
     }
     // ???ㅼ?以꾨줈 ?ㅼ떆 push
-    pushRecurringFutureDates(gcal, id, name, oldRec?.type || "weekly", dayValue, time, interval, startDate || todayKey(), endDate);
+    pushRecurringFutureDates(gcal, id, name, oldRec?.type || "weekly", dayValue, time, interval, startDate || todayKey(), endDate, monthlyOpts);
   };
 
   const deleteRecurring = (id) => {
@@ -165,6 +188,10 @@ export function createRecurringActions({ data, updateData, gcal }) {
       if (r.startDate && dateKey < r.startDate) return false;
       if (r.endDate && dateKey > r.endDate) return false;
       if (r.type === "monthly") {
+        if (r.monthlyMode === "nthWeekday") {
+          const target = getNthWeekdayOfMonth(y, m, r.nthWeek, r.nthDayOfWeek);
+          return target !== null && dom === target;
+        }
         if (r.dayValue === -1) {
           const lastDay = new Date(y, m + 1, 0).getDate();
           return dom === lastDay;

@@ -31,7 +31,26 @@
       "Bash(npm run:*)",
       "Bash(ie4uinit.exe -show)",
       "Bash(dir \"C:\\\\Users\\\\Ryzen 3600\\\\Desktop\\\\TaskNote\\\\release\\\\win-unpacked\\\\.env\")",
-      "Bash(dir \"C:\\\\Users\\\\Ryzen 3600\\\\Desktop\\\\TaskNote\\\\release\\\\win-unpacked\\\\resources\\\\.env\")"
+      "Bash(dir \"C:\\\\Users\\\\Ryzen 3600\\\\Desktop\\\\TaskNote\\\\release\\\\win-unpacked\\\\resources\\\\.env\")",
+      "Bash(python3 -c \"import sys, json; lines=sys.stdin.read\\(\\).split\\(''''\\\\n''''\\); [print\\(json.loads\\(l\\).get\\(''''message'''',{}\\).get\\(''''content'''',''''''''\\)\\) for l in lines if l.strip\\(\\)]\")",
+      "Bash(jq -r \"select\\(.message.role==\"\"assistant\"\"\\) | .message.content[0].text // .message.content[0].thinking // empty\" 'C:\\\\Users\\\\Ryzen 3600\\\\.claude\\\\projects\\\\C--Users-Ryzen-3600-Desktop-TaskNote\\\\2bd7d99d-ad82-47c5-a218-0e27e3fee87c.jsonl')",
+      "Bash(npx acorn:*)",
+      "Bash(node -e \"require\\(''sharp''\\)\")",
+      "Bash(gh release:*)",
+      "Bash(curl -s \"https://api.github.com/repos/Skedit99/TaskNote/releases\")",
+      "Bash(curl -s \"https://api.github.com/repos/Skedit99/TaskNote/releases/300992882/assets\")",
+      "Bash(python3 -c \"import sys,json; [print\\(a[''''name''''], a[''''browser_download_url'''']\\) for a in json.loads\\(sys.stdin.read\\(\\)\\)]\")",
+      "Bash(curl -s https://api.github.com/repos/Skedit99/TaskNote/releases/300992882/assets)",
+      "Bash(ls -lh \"/c/Users/Ryzen 3600/Desktop/TaskNote/release/\"*.exe)",
+      "Bash(curl -sIL \"https://github.com/Skedit99/TaskNote/releases/download/v1.0.0/TaskNote-Setup-1.0.0.exe\")",
+      "WebSearch",
+      "Bash(grep -r \"Content-Security-Policy\\\\|fonts.googleapis\" '/c/Users/Ryzen 3600/Desktop/TaskNote' --include=*.js --include=*.html)",
+      "Bash(xxd -l 200 -s 1400 \"C:/Users/Ryzen 3600/Desktop/TaskNote/src/hooks/useRecurring.js\")",
+      "Bash(find 'C:\\\\Users\\\\Ryzen 3600\\\\Desktop\\\\TaskNote' -maxdepth 2 -type f \\\\\\(-name *.config.* -o -name *.conf.* \\\\\\))",
+      "Bash(find 'C:\\\\Users\\\\Ryzen 3600\\\\Desktop\\\\TaskNote' -maxdepth 1 -type f -name .*)",
+      "Bash(grep -r \"5173\\\\|5174\\\\|3000\\\\|server\" 'C:\\\\Users\\\\Ryzen 3600\\\\Desktop\\\\TaskNote' --include=*.js --include=*.ts --include=*.json --exclude-dir=node_modules --exclude-dir=dist)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(find /c/Users/Ryzen 3600/Desktop/TaskNote -type f \\\\\\(-iname *icon* -o -iname *favicon* -o -iname *logo* -o -iname *TaskNote* \\\\\\))"
     ]
   }
 }

@@ -286,9 +286,20 @@ const gcal = {
       } else if (r.type === "monthly") {
         cursor.setDate(1);
         while (cursor <= limit) {
-          const lastDay = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
-          const targetDay = r.dayValue === -1 ? lastDay : r.dayValue;
-          if (targetDay <= lastDay) {
+          let targetDay;
+          if (r.monthlyMode === "nthWeekday") {
+            const firstDay = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+            let firstOccurrence = firstDay.getDay() <= r.nthDayOfWeek
+              ? 1 + (r.nthDayOfWeek - firstDay.getDay())
+              : 1 + (7 - firstDay.getDay() + r.nthDayOfWeek);
+            const candidate = firstOccurrence + (r.nthWeek - 1) * 7;
+            const lastDay = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+            targetDay = candidate <= lastDay ? candidate : null;
+          } else {
+            const lastDay = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+            targetDay = r.dayValue === -1 ? lastDay : (r.dayValue <= lastDay ? r.dayValue : null);
+          }
+          if (targetDay) {
             const d = new Date(cursor.getFullYear(), cursor.getMonth(), targetDay);
             if (d >= today && d <= limit) {
               const dateKey = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
