@@ -35,6 +35,8 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
   const [isCustomPath, setIsCustomPath] = useState(false);
   const [updateStatus, setUpdateStatus] = useState(null); // null | "checking" | "downloading" | "downloaded" | "latest"
   const [updatePercent, setUpdatePercent] = useState(0);
+  const [updateVersion, setUpdateVersion] = useState("");
+  const [releaseNotes, setReleaseNotes] = useState("");
 
   useEffect(() => {
     if (isElectron) {
@@ -306,6 +308,8 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
                   setUpdateStatus("checking");
                   const result = await window.electronAPI.checkForUpdate();
                   if (result?.updateAvailable) {
+                    setUpdateVersion(result.latestVersion || "");
+                    setReleaseNotes(result.releaseNotes || "");
                     setUpdateStatus("downloading");
                     setUpdatePercent(0);
                     window.electronAPI.downloadUpdate();
@@ -353,11 +357,18 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
       {/* 업데이트 다운로드 프로그레스 모달 */}
       {(updateStatus === "downloading" || updateStatus === "downloaded") && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
-          <div style={{ background: T.cardBg, borderRadius: 16, padding: "32px 36px", width: 360, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", animation: "modalIn .2s ease" }}>
+          <div style={{ background: T.cardBg, borderRadius: 16, padding: "32px 36px", width: 400, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", animation: "modalIn .2s ease" }}>
             {updateStatus === "downloading" ? (
               <>
                 <p style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>업데이트 다운로드 중</p>
-                <p style={{ fontSize: 13, color: T.textMut, margin: "0 0 20px" }}>잠시만 기다려주세요...</p>
+                {updateVersion && <p style={{ fontSize: 12, color: T.primary, fontWeight: 600, margin: "0 0 4px" }}>v{updateVersion}</p>}
+                <p style={{ fontSize: 13, color: T.textMut, margin: "0 0 16px" }}>잠시만 기다려주세요...</p>
+                {releaseNotes && (
+                  <div style={{ textAlign: "left", padding: "10px 14px", background: T.surfaceBg, borderRadius: 10, border: `1px solid ${T.border}`, marginBottom: 16, maxHeight: 120, overflowY: "auto" }} className="hide-scrollbar">
+                    <p style={{ fontSize: 11, fontWeight: 700, color: T.textSec, margin: "0 0 6px" }}>변경사항</p>
+                    <p style={{ fontSize: 12, color: T.textSec, margin: 0, whiteSpace: "pre-wrap", lineHeight: "1.6" }}>{releaseNotes}</p>
+                  </div>
+                )}
                 <div style={{ width: "100%", height: 8, background: T.border, borderRadius: 4, overflow: "hidden", marginBottom: 10 }}>
                   <div style={{ width: `${updatePercent}%`, height: "100%", background: `linear-gradient(90deg, ${T.primary}, ${T.accent})`, borderRadius: 4, transition: "width 0.3s ease" }} />
                 </div>
@@ -366,7 +377,14 @@ export default function SettingsModal({ onClose, T, calendarRange, onRangeChange
             ) : (
               <>
                 <p style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>다운로드 완료!</p>
-                <p style={{ fontSize: 13, color: T.textMut, margin: "0 0 20px" }}>앱을 재시작하면 업데이트가 적용됩니다</p>
+                {updateVersion && <p style={{ fontSize: 12, color: T.primary, fontWeight: 600, margin: "0 0 4px" }}>v{updateVersion}</p>}
+                {releaseNotes && (
+                  <div style={{ textAlign: "left", padding: "10px 14px", background: T.surfaceBg, borderRadius: 10, border: `1px solid ${T.border}`, marginBottom: 16, maxHeight: 120, overflowY: "auto" }} className="hide-scrollbar">
+                    <p style={{ fontSize: 11, fontWeight: 700, color: T.textSec, margin: "0 0 6px" }}>변경사항</p>
+                    <p style={{ fontSize: 12, color: T.textSec, margin: 0, whiteSpace: "pre-wrap", lineHeight: "1.6" }}>{releaseNotes}</p>
+                  </div>
+                )}
+                <p style={{ fontSize: 13, color: T.textMut, margin: "0 0 16px" }}>앱을 재시작하면 업데이트가 적용됩니다</p>
                 <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                   <button onClick={() => setUpdateStatus(null)} style={{ padding: "10px 20px", border: `1px solid ${T.border}`, background: T.cardBg, borderRadius: 10, cursor: "pointer", fontSize: 14, fontWeight: 500, color: T.textSec }}>나중에</button>
                   <button onClick={() => { if (isElectron) window.electronAPI.installUpdate(); }} style={{ padding: "10px 20px", border: "none", background: `linear-gradient(135deg,${T.primary},${T.accent})`, color: "white", borderRadius: 10, cursor: "pointer", fontSize: 14, fontWeight: 600, boxShadow: `0 2px 8px ${T.primary}44` }}>지금 재시작</button>

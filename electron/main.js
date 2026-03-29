@@ -802,7 +802,26 @@ ipcMain.handle('check-for-update', async () => {
     const currentVersion = app.getVersion();
     const latestVersion = result?.updateInfo?.version;
     const available = !!(latestVersion && latestVersion !== currentVersion);
-    return { updateAvailable: available, latestVersion };
+    // GitHub Release notes 가져오기
+    let releaseNotes = result?.updateInfo?.releaseNotes || "";
+    if (!releaseNotes && available) {
+      try {
+        const https = require('https');
+        const notes = await new Promise((resolve) => {
+          const req = https.get(`https://api.github.com/repos/Skedit99/TaskNote/releases/tags/v${latestVersion}`, {
+            headers: { 'User-Agent': 'TaskNote', 'Accept': 'application/vnd.github.v3+json' }
+          }, (res) => {
+            let body = '';
+            res.on('data', (c) => body += c);
+            res.on('end', () => { try { resolve(JSON.parse(body).body || ""); } catch { resolve(""); } });
+          });
+          req.on('error', () => resolve(""));
+          req.setTimeout(5000, () => { req.destroy(); resolve(""); });
+        });
+        releaseNotes = notes;
+      } catch { releaseNotes = ""; }
+    }
+    return { updateAvailable: available, latestVersion, releaseNotes };
   } catch (e) {
     console.error('[AutoUpdater] 확인 실패:', e.message);
     return { updateAvailable: false, error: e.message };
