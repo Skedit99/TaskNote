@@ -247,9 +247,7 @@ export default function useTaskData() {
     updateData((d) => {
       if (!d.events) d.events = [];
       d.events.push({ id: evId, name: qt.name, description: qt.description || "", date: dateKey, time: qt.time || "", endTime: qt.endTime || "", quickTaskId, updatedAt: Date.now() });
-      if (dateKey === todayKey()) {
-        d.todayTasks.push({ projectId: "event", taskId: evId, completed: false, addedDate: todayKey(), time: qt.time || "", updatedAt: Date.now() });
-      }
+      // 퀵 일정은 todayTasks에 추가하지 않음 - 캘린더에서 quickTaskId로 별도 표시
     });
     gcal.create({ localId: evId, summary: qt.name, description: qt.description || "", date: dateKey, time: qt.time || "", endTime: qt.endTime || "", type: "event" });
     return true;

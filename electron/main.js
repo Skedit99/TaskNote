@@ -402,7 +402,7 @@ function writeJsonFile(filename, data) {
       fs.copyFileSync(tempPath, filePath);
       fs.unlinkSync(tempPath);
     }
-    setTimeout(() => { selfWriteFlag = false; }, 500);
+    setTimeout(() => { selfWriteFlag = false; }, 1500);
   } catch (e) {
     // 쓰기 실패 시 selfWriteFlag 해제 (고착 방지)
     selfWriteFlag = false;
@@ -419,7 +419,7 @@ function watchDataFile() {
   const filePath = getFilePath(DATA_FILE);
   dataWatcher = chokidar.watch(filePath, {
     ignoreInitial: true,
-    awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+    awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
   });
   dataWatcher.on('change', () => {
     if (selfWriteFlag) return;

@@ -225,13 +225,31 @@ export function useStorage() {
         return { ...defaultData, ...migrateToNormalizedData(merged) };
       });
     });
+
   }, []);
 
   useEffect(() => {
     if (!loaded) return;
     gcal.flushOfflineQueue();
     gcal.syncExisting(data);
-    const onFocus = () => gcal.flushOfflineQueue();
+    const onFocus = async () => {
+      gcal.flushOfflineQueue();
+      // 포커스 시 디스크에서 최신 데이터 읽어서 병합 (클라우드 동기화 대응)
+      if (isElectron && window.electronAPI.loadAppData) {
+        try {
+          const diskData = await window.electronAPI.loadAppData();
+          if (diskData && diskData.lastUpdated) {
+            setData((prev) => {
+              if (!prev.lastUpdated || diskData.lastUpdated > prev.lastUpdated) {
+                externalUpdateRef.current = true;
+                return { ...defaultData, ...migrateToNormalizedData(diskData) };
+              }
+              return prev;
+            });
+          }
+        } catch (e) {}
+      }
+    };
     window.addEventListener("focus", onFocus);
     // 앱 종료 전 디바운스 큐 강제 flush
     const onBeforeUnload = () => gcal.forceFlush();

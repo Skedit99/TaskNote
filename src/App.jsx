@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { DAYS_KR } from "./constants";
+import { DAYS_KR, isElectron } from "./constants";
 import useTaskData from "./hooks/useTaskData";
 import gcal from "./hooks/gcalHelper";
 
@@ -72,17 +72,31 @@ export default function TaskManager() {
     agreedTerms, setAgreedTerms,
   } = ctx;
 
-  // ── GCal 동기화 버튼 쿨타임 (15초) ──
+  // ── 동기화 버튼 쿨타임 (15초) ──
   const [syncCooldown, setSyncCooldown] = useState(false);
-  const handleSyncClick = useCallback(() => {
+  const handleSyncClick = useCallback(async () => {
     if (syncCooldown) return;
     setSyncCooldown(true);
-    // Push 먼저 (매핑 완성) → Pull (중복 import 방지)
+    // 1. 파일 동기화 (디스크에서 최신 데이터 읽어서 병합)
+    if (isElectron && window.electronAPI.loadAppData) {
+      try {
+        const diskData = await window.electronAPI.loadAppData();
+        if (diskData && diskData.lastUpdated) {
+          ctx.setData((prev) => {
+            if ((diskData.lastUpdated || 0) > (prev.lastUpdated || 0)) {
+              return { ...prev, ...diskData };
+            }
+            return prev;
+          });
+        }
+      } catch (e) { console.error('[Sync] 파일 동기화 실패:', e); }
+    }
+    // 2. GCal 동기화
     gcal.syncExisting(data);
     gcal.flushOfflineQueue();
-    fetchGcalEvents();  // waitForInitialSync()로 syncExisting 완료 후 실행
+    fetchGcalEvents();
     setTimeout(() => setSyncCooldown(false), 15000);
-  }, [syncCooldown, fetchGcalEvents, data]);
+  }, [syncCooldown, fetchGcalEvents, data, ctx]);
 
   const [widgetOpen, setWidgetOpen] = useState(false);
   const widgetRef = useRef(null);

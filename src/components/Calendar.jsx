@@ -170,7 +170,7 @@ export default function Calendar({ ctx }) {
             ...filteredRecur.map((r) => ({ type: "recur", name: r.name, pid: "recurring" })),
           ];
           return (
-            <div key={i} onClick={() => day && setSelectedDay(day === selectedDay ? null : day)}
+            <div key={i} onClick={() => day && setSelectedDay(day)}
               onDoubleClick={() => handleCalendarDoubleClick(day)}
               style={{
                 textAlign: "center", padding: "4px 4px 6px", borderRadius: 10, minHeight: 100,
