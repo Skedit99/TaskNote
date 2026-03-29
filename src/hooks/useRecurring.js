@@ -164,7 +164,7 @@ export function createRecurringActions({ data, updateData, gcal }) {
     if (!rec.active) return;
     if (data.todayTasks.some((t) => t.taskId === rec.id)) return;
     updateData((d) => {
-      d.todayTasks.push({ projectId: "recurring", taskId: rec.id, completed: false, updatedAt: Date.now() });
+      d.todayTasks.push({ projectId: "recurring", taskId: rec.id, completed: false, addedDate: todayKey(), updatedAt: Date.now() });
     });
     // 諛섎났 ?쇱젙? ?ㅻ뒛 ?좎쭨濡?媛쒕퀎 ?대깽???앹꽦 (蹂듯빀?? recurring:id:date)
     const dateKey = todayKey();

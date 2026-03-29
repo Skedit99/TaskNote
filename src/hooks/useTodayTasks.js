@@ -18,13 +18,24 @@ function getTaskName(data, projectId, taskId) {
 
 export function createTodayTaskActions({ data, updateData, gcal }) {
   // ?? ?ㅻ뒛 ??????
+  // 자정이 지나면 이전 날짜의 미완료 업무를 자동 정리 (과거에 남기고, 오늘로 이월하지 않음)
+  (() => {
+    const key = todayKey();
+    const stale = (data.todayTasks || []).filter((t) => !t.completed && t.addedDate && t.addedDate !== key);
+    if (stale.length > 0) {
+      updateData((d) => {
+        d.todayTasks = d.todayTasks.filter((t) => t.completed || !t.addedDate || t.addedDate === key);
+      });
+    }
+  })();
+
   const addToToday = (pid, tid) => {
     if (data.todayTasks.some((t) => t.taskId === tid)) return;
     const proj = data.projects.find((p) => p.id === pid);
     const task = findTaskById(proj?.subtasks || [], tid);
     if (!task || task.done) return;
     updateData((d) => {
-      d.todayTasks.push({ projectId: pid, taskId: tid, completed: false, updatedAt: Date.now() });
+      d.todayTasks.push({ projectId: pid, taskId: tid, completed: false, addedDate: todayKey(), updatedAt: Date.now() });
     });
     // GCal???ㅻ뒛 ?쇱젙?쇰줈 push
     gcal.create({ localId: tid, summary: task.name, description: task.description || "", date: todayKey(), time: task.time || "", type: "scheduled" });
@@ -134,7 +145,7 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
       const tt = d.todayTasks.find((x) => x.taskId === item.taskId);
       if (tt) { tt.completed = true; tt.completedAt = new Date().toISOString(); tt.updatedAt = Date.now(); }
       else if (dateKey === todayKey()) {
-        d.todayTasks.push({ projectId: item.projectId, taskId: item.taskId, completed: true, completedAt: new Date().toISOString(), updatedAt: Date.now() });
+        d.todayTasks.push({ projectId: item.projectId, taskId: item.taskId, completed: true, completedAt: new Date().toISOString(), addedDate: todayKey(), updatedAt: Date.now() });
       }
       // 완료 시 모든 날짜의 scheduled에서 제거 (task.done = true이므로)
       if (d.scheduled) {
@@ -181,7 +192,7 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
       const tt = d.todayTasks.find((x) => x.taskId === taskId);
       if (tt) { tt.completed = false; delete tt.completedAt; tt.updatedAt = Date.now(); }
       else if (dateKey === todayKey() && comp) {
-        d.todayTasks.push({ projectId: comp.projectId, taskId, completed: false, updatedAt: Date.now() });
+        d.todayTasks.push({ projectId: comp.projectId, taskId, completed: false, addedDate: todayKey(), updatedAt: Date.now() });
       }
       if (comp && comp.projectId && comp.projectId !== "recurring" && comp.projectId !== "event") {
         if (!d.scheduled) d.scheduled = {};
@@ -218,7 +229,7 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
       d.scheduled[dateKey].push({ projectId: pid, taskId: tid, updatedAt: Date.now() });
       // 오늘 날짜면 todayTasks에도 추가
       if (dateKey === todayKey() && !d.todayTasks.some((t) => t.taskId === tid)) {
-        d.todayTasks.push({ projectId: pid, taskId: tid, completed: false, updatedAt: Date.now() });
+        d.todayTasks.push({ projectId: pid, taskId: tid, completed: false, addedDate: todayKey(), updatedAt: Date.now() });
       }
     });
     gcal.create({ localId: tid, summary: task.name, description: task.description || "", date: dateKey, time: task.time || "", type: "scheduled" });
@@ -244,7 +255,7 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
   const moveScheduledToToday = (dateKey, item) => {
     if (data.todayTasks.some((t) => t.taskId === item.taskId)) return;
     updateData((d) => {
-      d.todayTasks.push({ projectId: item.projectId, taskId: item.taskId, completed: false, updatedAt: Date.now() });
+      d.todayTasks.push({ projectId: item.projectId, taskId: item.taskId, completed: false, addedDate: todayKey(), updatedAt: Date.now() });
       if (d.scheduled?.[dateKey]) {
         d.scheduled[dateKey] = d.scheduled[dateKey].filter((s) => s.taskId !== item.taskId);
         if (d.scheduled[dateKey].length === 0) delete d.scheduled[dateKey];

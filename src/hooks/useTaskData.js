@@ -113,7 +113,7 @@ export default function useTaskData() {
       if (!d.events) d.events = [];
       d.events.push({ id: evId, name, description: desc || "", date: dateKey, time: time || "", endTime: endTime || "", updatedAt: Date.now() });
       if (dateKey === todayKey()) {
-        d.todayTasks.push({ projectId: "event", taskId: evId, completed: false, time: time || "", updatedAt: Date.now() });
+        d.todayTasks.push({ projectId: "event", taskId: evId, completed: false, addedDate: todayKey(), time: time || "", updatedAt: Date.now() });
       }
     });
     gcal.create({ localId: evId, summary: name, description: desc || "", date: dateKey, time: time || "", endTime: endTime || "", type: "event" });
@@ -169,7 +169,7 @@ export default function useTaskData() {
       if (!d.scheduled[dateKey]) d.scheduled[dateKey] = [];
       d.scheduled[dateKey].push({ projectId, taskId: newId, time: time || "", endTime: endTime || "", updatedAt: Date.now() });
       if (dateKey === todayKey()) {
-        d.todayTasks.push({ projectId, taskId: newId, completed: false, time: time || "", updatedAt: Date.now() });
+        d.todayTasks.push({ projectId, taskId: newId, completed: false, addedDate: todayKey(), time: time || "", updatedAt: Date.now() });
       }
     });
     gcal.create({ localId: newId, summary: name, description: desc || "", date: dateKey, time: time || "", endTime: endTime || "", type: "scheduled" });
@@ -197,9 +197,9 @@ export default function useTaskData() {
       if (ev.date === todayKey()) {
         const idx = d.todayTasks.findIndex((t) => t.taskId === eventId);
         if (idx >= 0) {
-          d.todayTasks[idx] = { projectId, taskId: newId, completed: false, time: ev.time || "", updatedAt: Date.now() };
+          d.todayTasks[idx] = { projectId, taskId: newId, completed: false, addedDate: todayKey(), time: ev.time || "", updatedAt: Date.now() };
         } else {
-          d.todayTasks.push({ projectId, taskId: newId, completed: false, time: ev.time || "", updatedAt: Date.now() });
+          d.todayTasks.push({ projectId, taskId: newId, completed: false, addedDate: todayKey(), time: ev.time || "", updatedAt: Date.now() });
         }
       }
 
@@ -248,7 +248,7 @@ export default function useTaskData() {
       if (!d.events) d.events = [];
       d.events.push({ id: evId, name: qt.name, description: qt.description || "", date: dateKey, time: qt.time || "", endTime: qt.endTime || "", quickTaskId, updatedAt: Date.now() });
       if (dateKey === todayKey()) {
-        d.todayTasks.push({ projectId: "event", taskId: evId, completed: false, time: qt.time || "", updatedAt: Date.now() });
+        d.todayTasks.push({ projectId: "event", taskId: evId, completed: false, addedDate: todayKey(), time: qt.time || "", updatedAt: Date.now() });
       }
     });
     gcal.create({ localId: evId, summary: qt.name, description: qt.description || "", date: dateKey, time: qt.time || "", endTime: qt.endTime || "", type: "event" });
@@ -367,7 +367,7 @@ export default function useTaskData() {
           });
           if (ev.date === todayKey()) {
             if (!d.todayTasks.some((t) => t.taskId === localId)) {
-              d.todayTasks.push({ projectId: "event", taskId: localId, completed: false, time: ev.time || "", updatedAt: Date.now() });
+              d.todayTasks.push({ projectId: "event", taskId: localId, completed: false, addedDate: todayKey(), time: ev.time || "", updatedAt: Date.now() });
             }
           }
           window.electronAPI.gcalSaveImportMapping({ localId, gcalEventId: ev.gcalEventId, date: ev.date }).catch(() => {});

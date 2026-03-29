@@ -277,7 +277,7 @@ export function useStorage() {
       const todayEvents = d.events.filter((e) => e.date === key && !e.deleted);
       for (const ev of todayEvents) {
         if (!d.todayTasks.some((t) => t.taskId === ev.id)) {
-          d.todayTasks.push({ projectId: "event", taskId: ev.id, completed: false, updatedAt: Date.now() });
+          d.todayTasks.push({ projectId: "event", taskId: ev.id, completed: false, addedDate: key, updatedAt: Date.now() });
         }
       }
 
@@ -285,7 +285,7 @@ export function useStorage() {
       const todayScheduled = d.scheduled[key] || [];
       for (const s of todayScheduled) {
         if (!d.todayTasks.some((t) => t.taskId === s.taskId)) {
-          d.todayTasks.push({ projectId: s.projectId, taskId: s.taskId, completed: false, time: s.time || "", updatedAt: Date.now() });
+          d.todayTasks.push({ projectId: s.projectId, taskId: s.taskId, completed: false, addedDate: key, time: s.time || "", updatedAt: Date.now() });
         }
       }
 
@@ -293,7 +293,7 @@ export function useStorage() {
       const todayCompleted = d.completedToday?.[key] || [];
       for (const c of todayCompleted) {
         if (!d.todayTasks.some((t) => t.taskId === c.taskId)) {
-          d.todayTasks.push({ projectId: c.projectId, taskId: c.taskId, completed: true, completedAt: c.completedAt || "", updatedAt: Date.now() });
+          d.todayTasks.push({ projectId: c.projectId, taskId: c.taskId, completed: true, completedAt: c.completedAt || "", addedDate: key, updatedAt: Date.now() });
         }
       }
     });
