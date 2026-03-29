@@ -43,8 +43,7 @@
       "icon": "build/icon.ico"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
       "installerLanguages": [
         "ko-KR",
         "en-US"

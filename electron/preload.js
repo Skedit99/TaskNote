@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_e, ver) => cb(ver)),
   onUpdateProgress: (cb) => ipcRenderer.on('update-download-progress', (_e, pct) => cb(pct)),
   onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', () => cb()),
+  onUpdateInstalling: (cb) => ipcRenderer.on('update-installing', () => cb()),
 
   // ── 데이터 저장 경로 ──
   getDataPath: () => ipcRenderer.invoke('get-data-path'),

@@ -28,25 +28,63 @@ if (!TOKEN) {
   process.exit(1);
 }
 
-// 이전 태그 찾기
-function getPreviousTag() {
+// GitHub에서 이전 릴리즈 태그 찾기 (로컬 태그 없어도 동작)
+async function getPreviousTag() {
+  try {
+    // GitHub API에서 릴리즈 목록 가져오기 (최신순)
+    const { status, data: releases } = await githubApi('GET', '/releases?per_page=20');
+    if (status === 200 && Array.isArray(releases)) {
+      // 현재 버전이 아닌 published 릴리즈 중 가장 최신 것
+      const prev = releases.find(r => r.tag_name !== TAG && !r.draft);
+      if (prev) return prev.tag_name;
+    }
+  } catch {}
+
+  // GitHub API 실패 시 로컬 태그 fallback
   try {
     const tags = execSync('git tag --sort=-creatordate', { encoding: 'utf-8' }).trim().split('\n').filter(Boolean);
     const currentIdx = tags.indexOf(TAG);
     if (currentIdx >= 0 && tags[currentIdx + 1]) return tags[currentIdx + 1];
     if (tags.length >= 2) return tags[1];
-    return null;
-  } catch {
-    return null;
-  }
+  } catch {}
+
+  return null;
 }
 
-// 커밋 메시지 가져오기
-function getCommitMessages() {
-  const prevTag = getPreviousTag();
-  const range = prevTag ? `${prevTag}..HEAD` : 'HEAD~10..HEAD';
+// 이전 릴리즈 커밋을 찾아서 해당 버전 커밋 이후의 메시지만 수집
+async function getCommitMessages() {
+  const prevTag = await getPreviousTag();
+  console.log(`[Release Notes] 이전 릴리즈: ${prevTag || '없음'}`);
+
+  // 로컬에 태그가 없을 수 있으므로, 버전 커밋 메시지로 범위 특정
+  if (prevTag) {
+    // 먼저 로컬 태그로 시도
+    try {
+      const log = execSync(`git log ${prevTag}..HEAD --pretty=format:"%s" --no-merges`, { encoding: 'utf-8' }).trim();
+      return log.split('\n').filter(Boolean);
+    } catch {}
+
+    // 로컬 태그 없으면, 커밋 메시지에서 이전 버전 커밋 찾기
+    // "v1.1.1: ..." 형식의 버전 커밋만 중단점으로 인식 (본문에 버전이 언급된 건 무시)
+    const prevVersion = prevTag.replace('v', '');
+    const versionCommitPattern = new RegExp(`^v?${prevVersion.replace(/\./g, '\\.')}[:\\s]`);
+    try {
+      const allLog = execSync('git log --pretty=format:"%H %s" --no-merges -50', { encoding: 'utf-8' }).trim();
+      const lines = allLog.split('\n').filter(Boolean);
+      const commits = [];
+      for (const line of lines) {
+        const msg = line.substring(41); // hash(40) + space(1)
+        // "v1.1.1: ..." 또는 "1.1.1: ..." 로 시작하는 버전 커밋만 중단
+        if (versionCommitPattern.test(msg)) break;
+        commits.push(msg);
+      }
+      if (commits.length > 0) return commits;
+    } catch {}
+  }
+
+  // fallback: 최근 5개 커밋만
   try {
-    const log = execSync(`git log ${range} --pretty=format:"%s" --no-merges`, { encoding: 'utf-8' }).trim();
+    const log = execSync('git log HEAD~5..HEAD --pretty=format:"%s" --no-merges', { encoding: 'utf-8' }).trim();
     return log.split('\n').filter(Boolean);
   } catch {
     return [];
@@ -63,6 +101,9 @@ function formatReleaseNotes(commits) {
     // Co-Authored-By 제거, 버전 태그 커밋 제거
     const clean = msg.replace(/Co-Authored-By:.*$/i, '').trim();
     if (!clean || clean.startsWith('Merge')) continue;
+
+    // 내부 작업 커밋 제외 (다운로드 링크 변경, 홈페이지 링크 등)
+    if (/다운로드\s*링크/i.test(clean) || /download\s*link/i.test(clean)) continue;
 
     if (/^fix[:(]/i.test(clean) || clean.includes('버그') || clean.includes('수정')) {
       fixes.push(clean.replace(/^fix:\s*/i, '').trim());
@@ -139,7 +180,7 @@ async function main() {
   console.log(`[Release Notes] ${TAG} 릴리즈 노트 업데이트 중...`);
 
   // 1. 커밋 메시지 수집
-  const commits = getCommitMessages();
+  const commits = await getCommitMessages();
   console.log(`[Release Notes] ${commits.length}개 커밋 발견`);
 
   // 2. 릴리즈 노트 생성
@@ -148,20 +189,39 @@ async function main() {
   console.log(notes);
   console.log('----------------------------\n');
 
-  // 3. 기존 Release 찾기
-  const { status, data: release } = await githubApi('GET', `/releases/tags/${TAG}`);
+  // 3. 기존 Release 찾기 (Draft 포함)
+  // /releases/tags/ API는 Draft를 못 찾으므로, 전체 목록에서 검색
+  let release = null;
 
-  if (status === 200 && release.id) {
-    // Release가 이미 있으면 업데이트
-    const { status: patchStatus } = await githubApi('PATCH', `/releases/${release.id}`, { body: notes });
+  // 먼저 published release 검색
+  const { status, data: pubRelease } = await githubApi('GET', `/releases/tags/${TAG}`);
+  if (status === 200 && pubRelease.id) {
+    release = pubRelease;
+  }
+
+  // 없으면 Draft 포함 전체 목록에서 검색
+  if (!release) {
+    const { status: listStatus, data: allReleases } = await githubApi('GET', '/releases?per_page=10');
+    if (listStatus === 200 && Array.isArray(allReleases)) {
+      release = allReleases.find(r => r.tag_name === TAG);
+    }
+  }
+
+  if (release && release.id) {
+    // Release가 이미 있으면 업데이트 (Draft → Published 전환 + 릴리즈 노트)
+    const updateBody = {
+      body: notes,
+      name: `TaskNote ${TAG}`,
+      draft: false,
+    };
+    const { status: patchStatus } = await githubApi('PATCH', `/releases/${release.id}`, updateBody);
     if (patchStatus === 200) {
-      console.log(`[Release Notes] ✓ ${TAG} 릴리즈 노트 업데이트 완료!`);
+      console.log(`[Release Notes] ✓ ${TAG} 릴리즈 노트 업데이트 완료! (Draft→Published)`);
     } else {
       console.error(`[Release Notes] 업데이트 실패 (${patchStatus})`);
     }
   } else {
-    console.log(`[Release Notes] ${TAG} Release가 아직 없습니다. 빌드 후 다시 실행하세요.`);
-    // Release가 없으면 생성
+    console.log(`[Release Notes] ${TAG} Release가 아직 없습니다. 새로 생성합니다.`);
     const { status: createStatus } = await githubApi('POST', '/releases', {
       tag_name: TAG,
       name: `TaskNote ${TAG}`,

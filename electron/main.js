@@ -840,9 +840,9 @@ ipcMain.handle('download-update', async () => {
 
 // 업데이트 설치 & 재시작
 ipcMain.handle('install-update', () => {
-  saveBeforeQuitDone = true; // 업데이트 설치는 렌더러가 직접 호출하므로 이미 저장 완료 상태
+  saveBeforeQuitDone = true;
   app.isQuitting = true;
-  autoUpdater.quitAndInstall();
+  autoUpdater.quitAndInstall(true, true); // silent install, force quit
 });
 
 // 현재 앱 버전 가져오기
