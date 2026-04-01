@@ -4,6 +4,7 @@ import {
   findTaskById,
   findParentArray,
   removeTaskById,
+  isDescendant,
 } from "../utils/helpers";
 
 export function createProjectActions({ data, updateData, setModal, activeProject, setActiveProject, setExpanded, gcal }) {
@@ -146,6 +147,84 @@ export function createProjectActions({ data, updateData, setModal, activeProject
     gcal.del(tid);
   };
 
+  // 태스크를 다른 태스크의 하위로 이동 (드래그 앤 드롭)
+  const moveTaskUnder = (pid, draggedId, targetId) => {
+    const proj = data.projects.find((x) => x.id === pid);
+    if (!proj) return;
+    // 순환 방지: 드래그한 태스크의 자손에 타겟이 있으면 불가
+    if (isDescendant(draggedId, targetId, proj.subtasks)) return;
+
+    // 이동되는 태스크는 하위 업무가 되므로 일정/오늘할일에서 제거
+    updateData((d) => {
+      const p = d.projects.find((x) => x.id === pid);
+      if (!p) return;
+      // 트리에서 태스크를 떼어냄 (children 포함 통째로)
+      const dragged = findTaskById(p.subtasks, draggedId);
+      if (!dragged) return;
+      const clone = JSON.parse(JSON.stringify(dragged));
+      removeTaskById(p.subtasks, draggedId);
+      // 타겟의 children에 추가
+      const target = findTaskById(p.subtasks, targetId);
+      if (!target) return;
+      if (!target.children) target.children = [];
+      target.children.push(clone);
+      target.updatedAt = Date.now();
+      p.updatedAt = Date.now();
+      // 이동된 태스크의 오늘할일 제거
+      d.todayTasks = d.todayTasks.filter((t) => t.taskId !== draggedId);
+      // 이동된 태스크의 예약 일정 제거
+      if (d.scheduled) {
+        for (const key of Object.keys(d.scheduled)) {
+          d.scheduled[key] = d.scheduled[key].filter((s) => s.taskId !== draggedId);
+          if (d.scheduled[key].length === 0) delete d.scheduled[key];
+        }
+      }
+      if (d.completedToday) {
+        for (const key of Object.keys(d.completedToday)) {
+          d.completedToday[key] = d.completedToday[key].filter((c) => c.taskId !== draggedId);
+          if (d.completedToday[key].length === 0) delete d.completedToday[key];
+        }
+      }
+    });
+    gcal.del(draggedId);
+    setExpanded((p) => ({ ...p, [targetId]: true }));
+  };
+
+  // 태스크를 타겟의 형제(위/아래)로 이동 (다른 레벨에서 꺼내기)
+  const moveTaskBeside = (pid, draggedId, targetId, position) => {
+    const proj = data.projects.find((x) => x.id === pid);
+    if (!proj) return;
+    if (isDescendant(draggedId, targetId, proj.subtasks)) return;
+
+    updateData((d) => {
+      const p = d.projects.find((x) => x.id === pid);
+      if (!p) return;
+      const dragged = findTaskById(p.subtasks, draggedId);
+      if (!dragged) return;
+      const clone = JSON.parse(JSON.stringify(dragged));
+      removeTaskById(p.subtasks, draggedId);
+      // 타겟이 속한 부모 배열 찾기
+      const findParent = (arr, id, parent) => {
+        for (const s of arr) {
+          if (s.id === id) return { arr, parent };
+          if (s.children) {
+            const r = findParent(s.children, id, s);
+            if (r) return r;
+          }
+        }
+        return null;
+      };
+      const result = findParent(p.subtasks, targetId, null);
+      if (!result) return;
+      const targetArr = result.arr;
+      const ti = targetArr.findIndex((s) => s.id === targetId);
+      if (ti === -1) return;
+      const insertAt = position === "below" ? ti + 1 : ti;
+      targetArr.splice(insertAt, 0, clone);
+      p.updatedAt = Date.now();
+    });
+  };
+
   const reorderSubtasks = (pid, parentId, arr) =>
     updateData((d) => {
       const p = d.projects.find((x) => x.id === pid);
@@ -161,6 +240,6 @@ export function createProjectActions({ data, updateData, setModal, activeProject
   return {
     activeProjects, archivedProjects,
     addProject, editProject, deleteProject, archiveProject, restoreProject, reorderProjects,
-    addSubtask, editSubtask, editSubtaskDesc, editSubtaskTime, deleteSubtask, reorderSubtasks,
+    addSubtask, editSubtask, editSubtaskDesc, editSubtaskTime, deleteSubtask, reorderSubtasks, moveTaskUnder, moveTaskBeside,
   };
 }

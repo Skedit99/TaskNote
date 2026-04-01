@@ -2,7 +2,7 @@
 import { migrateToNormalizedData } from "../utils/selectors";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { defaultData, STORAGE_KEY, THEME_KEY, MINI_SETTINGS_KEY, CAL_RANGE_KEY, WINDOW_MODE_KEY, isElectron } from "../constants";
-import { todayKey } from "../utils/helpers";
+import { todayKey, findTaskById } from "../utils/helpers";
 import { THEMES } from "../constants/theme";
 import gcal from "./gcalHelper";
 
@@ -208,21 +208,30 @@ export function useStorage() {
     };
 
     window.electronAPI.onExternalDataChanged((newData) => {
+      if (!newData) return;
       externalUpdateRef.current = true;  // 저장 루프 방지
       setData((prev) => {
-        const merged = mergeOnRenderer(prev, newData);
-        lastSavedTimestampRef.current = merged.lastUpdated || 0;
-        return { ...defaultData, ...migrateToNormalizedData(merged) };
+        // 외부(다른 PC) 변경은 전체 교체 — merge하면 삭제된 항목이 부활함
+        if ((newData.lastUpdated || 0) >= (prev.lastUpdated || 0)) {
+          lastSavedTimestampRef.current = newData.lastUpdated || 0;
+          return { ...defaultData, ...migrateToNormalizedData(newData) };
+        }
+        // 로컬이 더 최신이면 무시
+        return prev;
       });
     });
 
     window.electronAPI.onDataConflict((diskData) => {
-      console.warn("[Sync] 데이터 충돌! 병합 후 적용합니다.");
+      if (!diskData) return;
+      console.warn("[Sync] 데이터 충돌 감지 — 최신 데이터로 교체합니다.");
       externalUpdateRef.current = true;  // 저장 루프 방지
       setData((prev) => {
-        const merged = mergeOnRenderer(prev, diskData);
-        lastSavedTimestampRef.current = merged.lastUpdated || 0;
-        return { ...defaultData, ...migrateToNormalizedData(merged) };
+        // 충돌 시에도 전체 교체 (더 최신 데이터 기준)
+        if ((diskData.lastUpdated || 0) >= (prev.lastUpdated || 0)) {
+          lastSavedTimestampRef.current = diskData.lastUpdated || 0;
+          return { ...defaultData, ...migrateToNormalizedData(diskData) };
+        }
+        return prev;
       });
     });
 
@@ -234,9 +243,17 @@ export function useStorage() {
     gcal.syncExisting(data);
     const onFocus = async () => {
       gcal.flushOfflineQueue();
-      // 포커스 시 디스크에서 최신 데이터 읽어서 병합 (클라우드 동기화 대응)
-      if (isElectron && window.electronAPI.loadAppData) {
+      // 포커스 시 클라우드 동기화 모드일 때만 변경 체크 (로컬 모드는 스킵)
+      if (isElectron && window.electronAPI.getLastUpdated) {
         try {
+          // 클라우드 동기화 모드가 아니면 불필요한 로드 스킵
+          const isCloud = await window.electronAPI.isCloudSync();
+          if (!isCloud) return;
+
+          // lastUpdated만 경량 체크 → 변경 시에만 전체 로드
+          const diskTs = await window.electronAPI.getLastUpdated();
+          if (!diskTs || diskTs <= (latestDataRef.current.lastUpdated || 0)) return;
+
           const diskData = await window.electronAPI.loadAppData();
           if (diskData && diskData.lastUpdated) {
             setData((prev) => {
@@ -290,6 +307,30 @@ export function useStorage() {
 
       // ── 날짜 변경 정리: 어제 이전의 완료된 작업만 제거 ──
       d.todayTasks = d.todayTasks.filter((t) => !t.completed);
+
+      // ── scheduled에서 이미 완료된(done) 태스크 정리 (잔류 방어) ──
+      if (d.scheduled) {
+        for (const [dk, items] of Object.entries(d.scheduled)) {
+          const completedIds = new Set(
+            (d.completedToday?.[dk] || []).map((c) => c.taskId)
+          );
+          const filtered = items.filter((s) => {
+            // completedToday에 있으면 제거
+            if (completedIds.has(s.taskId)) return false;
+            // 프로젝트 서브태스크의 done 확인
+            if (s.projectId && s.projectId !== "recurring" && s.projectId !== "event") {
+              const proj = d.projects.find((p) => p.id === s.projectId);
+              if (proj) {
+                const task = findTaskById(proj.subtasks || [], s.taskId);
+                if (task?.done) return false;
+              }
+            }
+            return true;
+          });
+          if (filtered.length === 0) delete d.scheduled[dk];
+          else d.scheduled[dk] = filtered;
+        }
+      }
 
       // ── 오늘의 이벤트를 todayTasks에 추가 ──
       const todayEvents = d.events.filter((e) => e.date === key && !e.deleted);

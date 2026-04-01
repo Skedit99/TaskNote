@@ -5,6 +5,9 @@ const { loginWithGoogle, logoutGoogle, getGoogleAuthStatus } = require('./google
 const { createGcalEvent, updateGcalEvent, deleteGcalEvent, deleteMultipleGcalEvents, processOfflineQueue, fetchGcalEvents, fetchHolidays, saveImportMapping, cleanupStaleMapping } = require('./gcal-sync');
 const os = require('os');
 const chokidar = require('chokidar');
+const { DB_FILE, openDatabase, closeDatabase, getDatabase } = require('./database');
+const sqliteStorage = require('./storage-sqlite');
+const { migrateJsonToSqlite, migrateSettingsToSqlite } = require('./migrate-json-to-sqlite');
 
 // Windows 작업표시줄 아이콘 표시를 위해 AppUserModelId 설정 (반드시 early에 호출)
 app.setAppUserModelId('com.tasknote.app');
@@ -194,11 +197,11 @@ ipcMain.handle('get-auto-launch', () => {
 });
 ipcMain.handle('set-auto-launch', (_e, enabled) => {
   app.setLoginItemSettings({ openAtLogin: enabled });
-  // settings.json에도 기록하여 재패키징 후 자동 복원
+  // SQLite settings에도 기록하여 재패키징 후 자동 복원
   try {
-    const settings = readJsonFile(SETTINGS_FILE, {});
+    const settings = sqliteStorage.loadSettings() || {};
     settings.autoLaunch = enabled;
-    writeJsonFile(SETTINGS_FILE, settings);
+    sqliteStorage.saveSettings(settings);
   } catch (e) {}
 });
 
@@ -327,9 +330,9 @@ ipcMain.handle('gcal-save-import-mapping', async (_e, { localId, gcalEventId, da
 const fs = require('fs');
 
 const DATA_FILE = 'taskdata.json';
+const SYNC_FILE = 'taskdata.sync.json'; // 클라우드 동기화용
 const SETTINGS_FILE = 'settings.json';
 const CUSTOM_PATH_FILE = 'custom-data-path.json';
-const ARCHIVE_FILE = 'archive.json';
 const ARCHIVE_DAYS = 90;
 
 function getCustomDataPath() {
@@ -414,287 +417,136 @@ function writeJsonFile(filename, data) {
   }
 }
 
+/**
+ * 클라우드 동기화용 JSON 파일 쓰기 (옵션 B 전략)
+ * - 커스텀 경로가 설정된 경우에만 sync.json을 생성
+ * - 실패 시 재시도 + pendingSyncData에 보관하여 다음 저장 때 재시도
+ */
+let pendingSyncData = null;
+
+function writeSyncFile(data) {
+  if (!getCustomDataPath()) return;
+
+  const dataToWrite = data;
+  const maxRetries = 2;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      writeJsonFile(SYNC_FILE, dataToWrite);
+      pendingSyncData = null; // 성공 시 대기 데이터 초기화
+      return;
+    } catch (e) {
+      console.error(`[Sync] sync.json 쓰기 실패 (시도 ${attempt + 1}/${maxRetries + 1}):`, e.message);
+      if (attempt < maxRetries) {
+        // 짧은 대기 후 재시도
+        const waitUntil = Date.now() + 200 * (attempt + 1);
+        while (Date.now() < waitUntil) { /* spin wait */ }
+      }
+    }
+  }
+
+  // 모든 재시도 실패 → 다음 저장 때 재시도할 수 있도록 보관
+  pendingSyncData = dataToWrite;
+  console.error('[Sync] sync.json 쓰기 최종 실패. 다음 저장 시 재시도 예약됨.');
+}
+
+/**
+ * 이전에 실패한 sync 쓰기가 있으면 재시도합니다.
+ * save-app-data 핸들러 진입 시 호출됩니다.
+ */
+function flushPendingSync() {
+  if (!pendingSyncData) return;
+  console.log('[Sync] 이전 실패한 sync.json 쓰기 재시도...');
+  try {
+    writeJsonFile(SYNC_FILE, pendingSyncData);
+    pendingSyncData = null;
+    console.log('[Sync] 재시도 성공.');
+  } catch (e) {
+    console.error('[Sync] 재시도 실패:', e.message);
+  }
+}
+
 function watchDataFile() {
   if (dataWatcher) dataWatcher.close();
-  const filePath = getFilePath(DATA_FILE);
-  dataWatcher = chokidar.watch(filePath, {
+
+  const customPath = getCustomDataPath();
+  if (!customPath) {
+    // 커스텀 경로 없으면 로컬 DB만 사용 — 파일감시 불필요
+    console.log('[Watcher] 로컬 모드 — 파일 감시 생략');
+    return;
+  }
+
+  // 클라우드 동기화 모드: sync.json 감시 (기존 JSON 파이프라인 재활용)
+  const syncFilePath = path.join(customPath, SYNC_FILE);
+  dataWatcher = chokidar.watch(syncFilePath, {
     ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
   });
   dataWatcher.on('change', () => {
     if (selfWriteFlag) return;
     try {
-      const newData = readJsonFile(DATA_FILE, null);
+      const newData = readJsonFile(SYNC_FILE, null);
       if (newData && mainWindow && !mainWindow.isDestroyed()) {
+        // 외부 변경 → SQLite에도 반영 + renderer 통지
+        sqliteStorage.saveAllData(newData);
         mainWindow.webContents.send('external-data-changed', newData);
+        console.log('[Watcher] 외부 변경 감지 → SQLite + renderer 동기화 완료');
       }
     } catch (e) {
-      console.error('[Watcher] 데이터 동기화 실패:', e.message);
+      console.error('[Watcher] 동기화 실패:', e.message);
     }
   });
+  console.log('[Watcher] 클라우드 모드 — sync.json 감시 시작:', syncFilePath);
 }
 
-// ── 자동 아카이빙 (Auto-Archiving) ──
-function archiveOldData() {
-  try {
-    const data = readJsonFile(DATA_FILE, null);
-    if (!data) return;
-
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - ARCHIVE_DAYS);
-    const cutoffStr = cutoff.toISOString().slice(0, 10); // "YYYY-MM-DD"
-
-    // 날짜 키 기반 객체에서 오래된 항목 분리
-    const splitByDate = (obj) => {
-      if (!obj || typeof obj !== 'object') return { keep: obj || {}, old: {} };
-      const keep = {};
-      const old = {};
-      for (const dateKey of Object.keys(obj)) {
-        if (dateKey < cutoffStr) old[dateKey] = obj[dateKey];
-        else keep[dateKey] = obj[dateKey];
-      }
-      return { keep, old };
-    };
-
-    // events 배열에서 오래된 항목 분리 (삭제된 툼스톤만 아카이빙, 활성 이벤트는 유지)
-    const splitEvents = (events) => {
-      if (!Array.isArray(events)) return { keep: [], old: [] };
-      const keep = [];
-      const old = [];
-      for (const ev of events) {
-        // 삭제된 툼스톤이 90일 지났으면 아카이빙 (하드 삭제)
-        if (ev.deleted && ev.date && ev.date < cutoffStr) { old.push(ev); continue; }
-        // 활성 이벤트는 날짜와 무관하게 유지 (과거 일정도 참조 가능하도록)
-        keep.push(ev);
-      }
-      return { keep, old };
-    };
-
-    const completedSplit = splitByDate(data.completedToday);
-    const scheduledSplit = splitByDate(data.scheduled);
-    const skipsSplit = splitByDate(data.recurringSkips);
-    const addsSplit = splitByDate(data.recurringAdds);
-    const eventsSplit = splitEvents(data.events);
-
-    // 아카이빙할 데이터가 없으면 조기 종료
-    const hasOld =
-      Object.keys(completedSplit.old).length > 0 ||
-      Object.keys(scheduledSplit.old).length > 0 ||
-      Object.keys(skipsSplit.old).length > 0 ||
-      Object.keys(addsSplit.old).length > 0 ||
-      eventsSplit.old.length > 0;
-
-    if (!hasOld) {
-      console.log('[Archive] 아카이빙할 데이터 없음. 스킵.');
-      return;
-    }
-
-    // 기존 archive.json 로드 후 병합
-    const archive = readJsonFile(ARCHIVE_FILE, {
-      completedToday: {},
-      scheduled: {},
-      recurringSkips: {},
-      recurringAdds: {},
-      events: [],
-      archivedAt: null,
-    });
-
-    // 날짜 키 객체 병합 (기존 아카이브 + 새 아카이브)
-    const mergeObj = (existing, incoming) => {
-      const merged = { ...existing };
-      for (const [key, val] of Object.entries(incoming)) {
-        if (merged[key] && Array.isArray(merged[key])) {
-          merged[key] = [...merged[key], ...val];
-        } else {
-          merged[key] = val;
-        }
-      }
-      return merged;
-    };
-
-    archive.completedToday = mergeObj(archive.completedToday || {}, completedSplit.old);
-    archive.scheduled = mergeObj(archive.scheduled || {}, scheduledSplit.old);
-    archive.recurringSkips = mergeObj(archive.recurringSkips || {}, skipsSplit.old);
-    archive.recurringAdds = mergeObj(archive.recurringAdds || {}, addsSplit.old);
-    archive.events = [...(archive.events || []), ...eventsSplit.old];
-    archive.archivedAt = new Date().toISOString();
-
-    // 1) archive.json 먼저 저장 (데이터 유실 방지)
-    writeJsonFile(ARCHIVE_FILE, archive);
-
-    // 2) taskdata.json에서 아카이빙 완료된 데이터 제거
-    data.completedToday = completedSplit.keep;
-    data.scheduled = scheduledSplit.keep;
-    data.recurringSkips = skipsSplit.keep;
-    data.recurringAdds = addsSplit.keep;
-    data.events = eventsSplit.keep;
-    data.lastUpdated = Date.now();
-
-    writeJsonFile(DATA_FILE, data);
-
-    const totalArchived =
-      Object.keys(completedSplit.old).length +
-      Object.keys(scheduledSplit.old).length +
-      Object.keys(skipsSplit.old).length +
-      Object.keys(addsSplit.old).length +
-      eventsSplit.old.length;
-    console.log(`[Archive] ${totalArchived}개 날짜 키/항목을 archive.json으로 이동 완료.`);
-  } catch (e) {
-    console.error('[Archive] 아카이빙 실패:', e.message);
-  }
-}
-
-// ── 데이터 병합 (Merge) 로직 ──
-function mergeTaskData(local, disk) {
-  if (!disk) return local;
-  if (!local) return disk;
-
-  const merged = { ...disk };
-
-  // 1. 단순 배열 병합 (최신 updatedAt 기준)
-  const mergeArrays = (localArr, diskArr) => {
-    const map = new Map();
-    (diskArr || []).forEach(item => map.set(item.id, item));
-    (localArr || []).forEach(item => {
-      const existing = map.get(item.id);
-      if (!existing || (item.updatedAt || 0) > (existing.updatedAt || 0)) {
-        map.set(item.id, item);
-      }
-    });
-    return Array.from(map.values());
-  };
-
-  // 2. 재귀적 서브태스크 병합
-  const mergeSubtasks = (localSub, diskSub) => {
-    const map = new Map();
-    (diskSub || []).forEach(item => map.set(item.id, item));
-    (localSub || []).forEach(item => {
-      const existing = map.get(item.id);
-      if (!existing || (item.updatedAt || 0) > (existing.updatedAt || 0)) {
-        const newItem = { ...item };
-        // 삭제된 항목이면 자식 병합 생략
-        if (newItem.deleted) {
-          map.set(item.id, newItem);
-          return;
-        }
-        if (existing && existing.children) {
-          newItem.children = mergeSubtasks(item.children, existing.children);
-        }
-        map.set(item.id, newItem);
-      } else if (existing && !existing.deleted) {
-        existing.children = mergeSubtasks(item.children, existing.children);
-      }
-    });
-    return Array.from(map.values());
-  };
-
-  // 프로젝트 병합 시 서브태스크도 병합
-  merged.projects = mergeArrays(local.projects, disk.projects).map(p => {
-    const localP = (local.projects || []).find(x => x.id === p.id);
-    const diskP = (disk.projects || []).find(x => x.id === p.id);
-    if (localP && diskP) {
-      return {
-        ...(localP.updatedAt > diskP.updatedAt ? localP : diskP),
-        subtasks: mergeSubtasks(localP.subtasks, diskP.subtasks)
-      };
-    }
-    return p;
-  });
-
-  merged.events = mergeArrays(local.events, disk.events);
-  merged.recurring = mergeArrays(local.recurring, disk.recurring);
-
-  // 3. 날짜 키 기반 객체 병합 (scheduled, completedToday, recurringSkips, recurringAdds)
-  const mergeDateObjects = (localObj, diskObj) => {
-    const res = { ...(diskObj || {}) };
-    if (!localObj) return res;
-    for (const [date, items] of Object.entries(localObj)) {
-      if (!res[date]) {
-        res[date] = items;
-      } else if (Array.isArray(items)) {
-        // 원시값 배열 (recurringSkips 등)은 합집합으로 병합
-        if (items.length > 0 && typeof items[0] !== 'object') {
-          const set = new Set([...(res[date] || []), ...items]);
-          res[date] = Array.from(set);
-        } else {
-          // 객체 배열: taskId 기준으로 최신것 유지
-          const map = new Map();
-          (res[date] || []).forEach(item => {
-            const key = item.taskId || item.id;
-            if (key) map.set(key, item);
-          });
-          items.forEach(item => {
-            const key = item.taskId || item.id;
-            if (!key) return; // 키 없는 항목은 무시
-            const existing = map.get(key);
-            if (!existing || (item.updatedAt || 0) > (existing.updatedAt || 0)) {
-              map.set(key, item);
-            }
-          });
-          res[date] = Array.from(map.values());
-        }
-      }
-    }
-    return res;
-  };
-
-  merged.scheduled = mergeDateObjects(local.scheduled, disk.scheduled);
-  merged.completedToday = mergeDateObjects(local.completedToday, disk.completedToday);
-  merged.recurringSkips = mergeDateObjects(local.recurringSkips, disk.recurringSkips);
-  merged.recurringAdds = mergeDateObjects(local.recurringAdds, disk.recurringAdds);
-
-  // todayTasks 정밀 병합 (taskId 기준)
-  const localToday = local.todayTasks || [];
-  const diskToday = disk.todayTasks || [];
-  const todayMap = new Map();
-  diskToday.forEach(t => todayMap.set(t.taskId, t));
-  localToday.forEach(t => {
-    const existing = todayMap.get(t.taskId);
-    if (!existing || (t.updatedAt || 0) > (existing.updatedAt || 0)) {
-      todayMap.set(t.taskId, t);
-    }
-  });
-  merged.todayTasks = Array.from(todayMap.values());
-  
-  merged.lastUpdated = Date.now();
-  return merged;
-}
-
-ipcMain.handle('load-app-data', () => readJsonFile(DATA_FILE, null));
+ipcMain.handle('load-app-data', () => {
+  return sqliteStorage.loadAllData();
+});
+ipcMain.handle('get-last-updated', () => {
+  return sqliteStorage.getLastUpdated();
+});
+ipcMain.handle('is-cloud-sync', () => {
+  return !!getCustomDataPath();
+});
 ipcMain.handle('save-app-data', (_e, data) => {
   try {
-    const diskData = readJsonFile(DATA_FILE, null);
+    // 이전에 실패한 sync 쓰기가 있으면 먼저 재시도
+    flushPendingSync();
+
     const incomingData = typeof data === 'string' ? JSON.parse(data) : data;
 
-    // B-3: 양방향 충돌 판정 (!==)
-    // 단, 같은 렌더러의 연속 저장(자기 충돌)은 무시 — incoming이 더 최신이면 단순 덮어쓰기
-    if (diskData && diskData.lastUpdated && incomingData.lastUpdated && diskData.lastUpdated !== incomingData.lastUpdated) {
-      // incoming이 disk보다 최신이면 자기 자신의 연속 저장 → 충돌이 아니라 단순 업데이트
-      if (incomingData.lastUpdated > diskData.lastUpdated) {
-        writeJsonFile(DATA_FILE, data);
+    // 충돌 판정: getLastUpdated()로 경량 체크 (전체 loadAllData 불필요)
+    const diskLastUpdated = sqliteStorage.getLastUpdated();
+    if (diskLastUpdated && incomingData.lastUpdated && diskLastUpdated !== incomingData.lastUpdated) {
+      if (incomingData.lastUpdated > diskLastUpdated) {
+        // 자기 자신의 연속 저장 → 단순 업데이트
+        sqliteStorage.saveAllData(incomingData);
+        writeSyncFile(incomingData);
         return { success: true };
       }
-      // disk가 더 최신 → 외부 변경이 있었으므로 병합 필요
-      console.warn('[Data] Conflict detected! Merging data...');
-      const mergedData = mergeTaskData(incomingData, diskData);
-      writeJsonFile(DATA_FILE, mergedData);
-
+      // disk가 더 최신 → 외부 변경 (이때만 전체 로드)
+      console.warn('[Data] Conflict: disk is newer. Using disk data.');
+      const diskData = sqliteStorage.loadAllData();
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('external-data-changed', mergedData);
+        mainWindow.webContents.send('external-data-changed', diskData);
       }
-      return { success: true, merged: true, data: mergedData };
+      return { success: true, merged: true, data: diskData };
     }
 
-    writeJsonFile(DATA_FILE, data);
+    sqliteStorage.saveAllData(incomingData);
+    writeSyncFile(incomingData);
     return { success: true };
   } catch (e) {
     console.error('[Data] save-app-data failed:', e.message);
     return { success: false, error: e.message };
   }
 });
-ipcMain.handle('load-settings', () => readJsonFile(SETTINGS_FILE, null));
+ipcMain.handle('load-settings', () => {
+  return sqliteStorage.loadSettings();
+});
 ipcMain.handle('save-settings', (_e, settings) => {
-  writeJsonFile(SETTINGS_FILE, settings);
+  const settingsData = typeof settings === 'string' ? JSON.parse(settings) : settings;
+  sqliteStorage.saveSettings(settingsData);
   return true;
 });
 
@@ -715,33 +567,35 @@ ipcMain.handle('select-data-folder', async () => {
 
 ipcMain.handle('set-data-path', (_e, newPath) => {
   try {
-    const oldPath = getFilePath(DATA_FILE);
-    const oldSettingsPath = getFilePath(SETTINGS_FILE);
+    // 현재 데이터 백업 (DB에서 읽기)
+    const currentData = sqliteStorage.loadAllData();
+
+    // 기존 DB 닫기
+    closeDatabase();
 
     // 새 경로 설정
     setCustomDataPath(newPath);
 
-    // 새 경로에 파일이 없으면 기존 파일 복사
-    const newDataPath = path.join(newPath, DATA_FILE);
-    const newSettingsPath = path.join(newPath, SETTINGS_FILE);
-
-    if (!fs.existsSync(path.dirname(newDataPath))) {
-      fs.mkdirSync(path.dirname(newDataPath), { recursive: true });
+    if (!fs.existsSync(newPath)) {
+      fs.mkdirSync(newPath, { recursive: true });
     }
 
-    if (!fs.existsSync(newDataPath) && fs.existsSync(oldPath)) {
-      fs.copyFileSync(oldPath, newDataPath);
-      console.log('[Data] 기존 데이터 복사 완료:', newDataPath);
-    }
-    if (!fs.existsSync(newSettingsPath) && fs.existsSync(oldSettingsPath)) {
-      fs.copyFileSync(oldSettingsPath, newSettingsPath);
+    // 새 경로에 DB 파일이 없으면 기존 DB 복사
+    const oldDbPath = path.join(app.getPath('userData'), DB_FILE);
+    const newDbPath = path.join(newPath, DB_FILE);
+    if (!fs.existsSync(newDbPath) && fs.existsSync(oldDbPath)) {
+      fs.copyFileSync(oldDbPath, newDbPath);
+      console.log('[Data] 기존 DB 복사 완료:', newDbPath);
     }
 
-    // 새 경로의 데이터 읽어서 반환 (즉시 적용용)
-    let newData = null;
-    if (fs.existsSync(newDataPath)) {
-      newData = JSON.parse(fs.readFileSync(newDataPath, 'utf-8'));
-    }
+    // 새 경로에서 DB 열기
+    openDatabase(newDbPath);
+
+    // 새 경로의 데이터 반환
+    const newData = sqliteStorage.loadAllData();
+
+    // 클라우드 동기화용 sync.json 초기화
+    if (newData) writeSyncFile(newData);
 
     watchDataFile(); // 새 경로 감시 시작
     return { success: true, path: newPath, data: newData };
@@ -752,13 +606,16 @@ ipcMain.handle('set-data-path', (_e, newPath) => {
 });
 
 ipcMain.handle('reset-data-path', () => {
+  // DB 닫기
+  closeDatabase();
+
   setCustomDataPath(null);
-  // 기본 경로의 데이터 읽어서 반환
-  const defaultPath = path.join(app.getPath('userData'), DATA_FILE);
-  let data = null;
-  try {
-    if (fs.existsSync(defaultPath)) data = JSON.parse(fs.readFileSync(defaultPath, 'utf-8'));
-  } catch (e) {}
+
+  // 기본 경로에서 DB 다시 열기
+  const defaultDbPath = path.join(app.getPath('userData'), DB_FILE);
+  openDatabase(defaultDbPath);
+
+  const data = sqliteStorage.loadAllData();
   watchDataFile(); // 기본 경로 감시 재시작
   return { success: true, path: app.getPath('userData'), data };
 });
@@ -849,15 +706,38 @@ ipcMain.handle('install-update', () => {
 ipcMain.handle('get-app-version', () => app.getVersion());
 
 app.whenReady().then(() => {
+  // ── SQLite 초기화 ──
+  const dbDir = getCustomDataPath() || app.getPath('userData');
+  const dbPath = path.join(dbDir, DB_FILE);
+
+  // JSON → SQLite 마이그레이션 (taskdata.json이 있고 DB가 비어있을 때만)
+  const jsonPath = path.join(dbDir, DATA_FILE);
+  const migrationResult = migrateJsonToSqlite(jsonPath, dbPath);
+  if (migrationResult.status === 'success') {
+    console.log('[Startup] JSON → SQLite 마이그레이션 완료. 백업:', migrationResult.backupPath);
+  } else if (migrationResult.status === 'failed') {
+    console.error('[Startup] 마이그레이션 실패 — JSON 폴백 모드로 계속합니다:', migrationResult.reason);
+  }
+
+  // DB 열기 (마이그레이션 후 또는 기존 DB)
+  openDatabase(dbPath);
+
+  // settings.json → SQLite 마이그레이션
+  const settingsJsonPath = path.join(dbDir, SETTINGS_FILE);
+  migrateSettingsToSqlite(settingsJsonPath, getDatabase());
+
   createWindow();
   createTray();
   setupAutoUpdater();
-  archiveOldData(); // 앱 시작 시 오래된 데이터 아카이빙
+
+  // SQLite 기반 아카이빙
+  sqliteStorage.archiveOldData(ARCHIVE_DAYS);
+
   watchDataFile(); // 파일 감시 시작 (아카이빙 후)
 
-  // 자동 시작 설정 복원 (재패키징 후 레지스트리 경로가 바뀌어도 settings.json 기준으로 복원)
+  // 자동 시작 설정 복원
   try {
-    const settings = readJsonFile(SETTINGS_FILE, {});
+    const settings = sqliteStorage.loadSettings() || {};
     if (settings.autoLaunch === true) {
       const current = app.getLoginItemSettings().openAtLogin;
       if (!current) {
@@ -872,6 +752,7 @@ app.whenReady().then(() => {
 });
 app.on('window-all-closed', () => {
   if (dataWatcher) dataWatcher.close(); // 감시 종료
+  closeDatabase(); // DB 안전 종료
   if (process.platform !== 'darwin') app.quit();
 });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

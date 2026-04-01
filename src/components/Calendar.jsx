@@ -157,14 +157,15 @@ export default function Calendar({ ctx }) {
           const isSel = selectedDay === day && day !== null;
           const today = isTodayDate(day);
           const holiday = getHolidayForDay(day);
-          const todayIds = new Set(todayTasks.map((t) => t.taskId));
           const compIds = new Set(comp.map((c) => c.taskId));
+          const filteredToday = todayTasks.filter((t) => !compIds.has(t.taskId));
+          const todayIds = new Set(filteredToday.map((t) => t.taskId));
           const filteredSched = sched.filter((s) => !todayIds.has(s.taskId) && !compIds.has(s.taskId));
           const filteredEvents = events.filter((e) => !todayIds.has(e.id) && !compIds.has(e.id));
           const filteredRecur = recur.filter((r) => !compIds.has(r.id) && !todayIds.has(r.id));
           const allItems = [
             ...filteredEvents.map((e) => ({ type: e.quickTaskId ? "quick" : "event", name: e.name, pid: "event" })),
-            ...todayTasks.map((t) => ({ type: "today", name: t.taskName, pid: t.projectId })),
+            ...filteredToday.map((t) => ({ type: "today", name: t.taskName, pid: t.projectId })),
             ...filteredSched.map((s) => ({ type: "sched", name: s.taskName, pid: s.projectId })),
             ...comp.map((c) => ({ type: "done", name: c.taskName, pid: c.projectId })),
             ...filteredRecur.map((r) => ({ type: "recur", name: r.name, pid: "recurring" })),

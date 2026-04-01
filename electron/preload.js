@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveAppData: (data) => ipcRenderer.invoke('save-app-data', data),
   loadSettings: () => ipcRenderer.invoke('load-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  getLastUpdated: () => ipcRenderer.invoke('get-last-updated'),
+  isCloudSync: () => ipcRenderer.invoke('is-cloud-sync'),
 
   // ── 자동 업데이트 ──
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),

@@ -21,10 +21,23 @@ export function createTodayTaskActions({ data, updateData, gcal }) {
   // 자정이 지나면 이전 날짜의 미완료 업무를 자동 정리 (과거에 남기고, 오늘로 이월하지 않음)
   (() => {
     const key = todayKey();
-    const stale = (data.todayTasks || []).filter((t) => !t.completed && t.addedDate && t.addedDate !== key);
+    const stale = (data.todayTasks || []).filter((t) => {
+      if (!t.addedDate || t.addedDate === key) return false;
+      // 미완료 태스크: 이전 날짜 것은 제거
+      if (!t.completed) return true;
+      // 완료 태스크: completedAt이 오늘이 아니면 제거
+      if (t.completedAt && t.completedAt.slice(0, 10) !== key) return true;
+      return false;
+    });
     if (stale.length > 0) {
       updateData((d) => {
-        d.todayTasks = d.todayTasks.filter((t) => t.completed || !t.addedDate || t.addedDate === key);
+        d.todayTasks = d.todayTasks.filter((t) => {
+          if (!t.addedDate || t.addedDate === key) return true;
+          if (!t.completed) return false;
+          // 완료 태스크는 오늘 완료한 것만 유지
+          if (t.completedAt && t.completedAt.slice(0, 10) !== key) return false;
+          return true;
+        });
       });
     }
   })();

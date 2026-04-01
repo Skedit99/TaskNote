@@ -1,3 +1,4 @@
+import React from "react";
 import { countAll, countDone, findTaskById, isDescendant, todayKey } from "../utils/helpers";
 
 export default function TaskItem({
@@ -6,9 +7,11 @@ export default function TaskItem({
   editingTask, setEditingTask, depthColors,
   hasNonTodaySelection, selectedDateKey, selectedDateLabel,
   addToToday, addToScheduled, getScheduledDateForTask, getTaskTime,
-  editSubtask, deleteSubtask, reorderSubtasks, setModal,
+  editSubtask, deleteSubtask, reorderSubtasks, moveTaskUnder, moveTaskBeside, setModal,
   getColorForProjectId,
 }) {
+  // "none" | "nest" | "above" | "below"
+  const [dropZone, setDropZone] = React.useState("none");
   const isInToday = data.todayTasks.some((tt) => tt.taskId === task.id);
   const hasChildren = task.children?.length > 0;
   const isExp = expanded[task.id];
@@ -19,30 +22,64 @@ export default function TaskItem({
   const isScheduled = !!existingSched;
   const pc = getColorForProjectId(projectId);
 
+  const insertLine = (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, margin: `2px 0 2px ${depth * 20}px`, height: 4 }}>
+      <div style={{ width: 8, height: 8, borderRadius: "50%", background: pc.color, flexShrink: 0 }} />
+      <div style={{ flex: 1, height: 2.5, borderRadius: 2, background: pc.color }} />
+    </div>
+  );
+
   return (
     <div key={task.id}>
+      {dropZone === "above" && insertLine}
       <div
         draggable={editingTask !== task.id}
         onDragStart={(e) => { if (editingTask === task.id) { e.preventDefault(); return; } e.dataTransfer.setData("text/plain", JSON.stringify({ taskId: task.id })); e.stopPropagation(); }}
-        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onDragOver={(e) => {
+          e.preventDefault(); e.stopPropagation();
+          const rect = e.currentTarget.getBoundingClientRect();
+          const y = e.clientY - rect.top;
+          const ratio = y / rect.height;
+          if (ratio < 0.15) setDropZone("above");
+          else if (ratio > 0.85) setDropZone("below");
+          else setDropZone("nest");
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget.contains(e.relatedTarget)) return;
+          setDropZone("none");
+        }}
         onDrop={(e) => {
           e.preventDefault(); e.stopPropagation();
+          const zone = dropZone;
+          setDropZone("none");
           try {
             const d = JSON.parse(e.dataTransfer.getData("text/plain"));
             if (d.taskId === task.id) return;
             const proj = data.projects.find((x) => x.id === projectId);
-            if (proj && isDescendant(d.taskId, task.id, proj.subtasks)) return;
-            const fi = siblings.findIndex((s) => s.id === d.taskId);
-            const ti = siblings.findIndex((s) => s.id === task.id);
-            if (fi !== -1 && ti !== -1) {
-              const pid2 = depth === 0 ? null : (() => {
-                const fp = (arr, tid, par) => { for (const s of arr) { if (s.id === tid) return par; if (s.children) { const r = fp(s.children, tid, s.id); if (r) return r; } } return null; };
-                return fp(data.projects.find((x) => x.id === projectId).subtasks, task.id, null);
-              })();
-              const na = [...siblings];
-              const [m] = na.splice(fi, 1);
-              na.splice(ti, 0, m);
-              reorderSubtasks(projectId, pid2, na);
+            if (!proj) return;
+            if (isDescendant(d.taskId, task.id, proj.subtasks)) return;
+
+            if (zone === "nest") {
+              // 중앙 영역: 하위 업무로 이동
+              moveTaskUnder(projectId, d.taskId, task.id);
+            } else {
+              // 상/하 가장자리: 타겟의 형제로 이동 (같은 레벨이면 순서변경, 다른 레벨이면 꺼내기/넣기)
+              const fi = siblings.findIndex((s) => s.id === d.taskId);
+              const ti = siblings.findIndex((s) => s.id === task.id);
+              if (fi !== -1 && ti !== -1) {
+                // 같은 siblings 내 순서 변경
+                const pid2 = depth === 0 ? null : (() => {
+                  const fp = (arr, tid, par) => { for (const s of arr) { if (s.id === tid) return par; if (s.children) { const r = fp(s.children, tid, s.id); if (r) return r; } } return null; };
+                  return fp(proj.subtasks, task.id, null);
+                })();
+                const na = [...siblings];
+                const [m] = na.splice(fi, 1);
+                na.splice(ti, 0, m);
+                reorderSubtasks(projectId, pid2, na);
+              } else {
+                // 다른 레벨 → 타겟의 형제 위치로 이동
+                moveTaskBeside(projectId, d.taskId, task.id, zone);
+              }
             }
           } catch (err) {}
         }}
@@ -54,6 +91,7 @@ export default function TaskItem({
           marginBottom: 3, minHeight: 42, marginLeft: depth * 20,
           opacity: task.done && !hasChildren ? 0.4 : 1,
           ...(depth > 0 ? { borderLeft: `3px solid ${bc}33` } : {}),
+          ...(dropZone === "nest" ? { outline: `2px dashed ${pc.color}`, outlineOffset: -2, background: pc.light + "cc" } : {}),
           cursor: "grab",
         }}
       >
@@ -140,12 +178,13 @@ export default function TaskItem({
               addToToday={addToToday} addToScheduled={addToScheduled}
               getScheduledDateForTask={getScheduledDateForTask} getTaskTime={getTaskTime}
               editSubtask={editSubtask} deleteSubtask={deleteSubtask}
-              reorderSubtasks={reorderSubtasks} setModal={setModal}
+              reorderSubtasks={reorderSubtasks} moveTaskUnder={moveTaskUnder} moveTaskBeside={moveTaskBeside} setModal={setModal}
               getColorForProjectId={getColorForProjectId}
             />
           ))}
         </div>
       )}
+      {dropZone === "below" && insertLine}
     </div>
   );
 }

@@ -55,10 +55,29 @@ export const getHydratedTodayTasks = (data) => {
 
 /**
  * 특정 날짜의 예정된(Scheduled) 태스크들을 결합하여 반환합니다.
+ * done === true인 태스크는 제외 (완료 처리 후 scheduled 잔류 방어)
  */
 export const getHydratedScheduled = (data, dateKey) => {
   if (!data?.scheduled?.[dateKey]) return [];
-  return data.scheduled[dateKey].map((s) => hydrateTask(data, s));
+  // 해당 날짜에 이미 완료된 taskId 수집 (중복 표시 방지)
+  const completedIds = new Set(
+    (data.completedToday?.[dateKey] || []).map((c) => c.taskId)
+  );
+  return data.scheduled[dateKey]
+    .filter((s) => {
+      // 이미 completedToday에 있으면 scheduled에서 제외
+      if (completedIds.has(s.taskId)) return false;
+      // 프로젝트 서브태스크의 done 상태 확인
+      if (s.projectId && s.projectId !== "recurring" && s.projectId !== "event") {
+        const project = (data.projects || []).find((p) => p.id === s.projectId && !p.deleted);
+        if (project) {
+          const task = findTaskById(project.subtasks || [], s.taskId);
+          if (task?.done) return false;
+        }
+      }
+      return true;
+    })
+    .map((s) => hydrateTask(data, s));
 };
 
 /**

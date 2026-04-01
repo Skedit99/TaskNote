@@ -57,7 +57,7 @@ export default function useTaskData() {
   const {
     activeProjects, archivedProjects,
     addProject, editProject, deleteProject, archiveProject, restoreProject, reorderProjects,
-    addSubtask, editSubtask, editSubtaskDesc, editSubtaskTime, deleteSubtask, reorderSubtasks,
+    addSubtask, editSubtask, editSubtaskDesc, editSubtaskTime, deleteSubtask, reorderSubtasks, moveTaskUnder, moveTaskBeside,
   } = createProjectActions({ data, updateData, setModal, activeProject, setActiveProject, setExpanded, gcal });
 
   const getProjectById = (pid) => data.projects.find((p) => p.id === pid && !p.deleted);
@@ -303,7 +303,13 @@ export default function useTaskData() {
     const m = month !== undefined ? month : calMonth;
     const key = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     if (key !== todayKey()) return [];
-    return data.todayTasks.filter((t) => !t.completed).map((t) => hydrateTask(data, t));
+    // 완료된 항목 + completedToday에 이미 있는 항목 제외 (중복 표시 방지)
+    const completedIds = new Set(
+      (data.completedToday?.[key] || []).map((c) => c.taskId)
+    );
+    return data.todayTasks
+      .filter((t) => !t.completed && !completedIds.has(t.taskId))
+      .map((t) => hydrateTask(data, t));
   };
 
   // ── 다크/라이트 토글 ──
@@ -506,7 +512,7 @@ export default function useTaskData() {
     addProject, editProject, deleteProject, archiveProject, restoreProject, reorderProjects,
 
     // 서브태스크
-    addSubtask, editSubtask, editSubtaskDesc, editSubtaskTime, deleteSubtask, reorderSubtasks,
+    addSubtask, editSubtask, editSubtaskDesc, editSubtaskTime, deleteSubtask, reorderSubtasks, moveTaskUnder, moveTaskBeside,
 
     // 오늘 할 일
     addToToday, toggleTodayTask, removeFromToday, updateCompletedAt,

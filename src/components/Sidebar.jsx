@@ -16,7 +16,7 @@ export default function Sidebar({ ctx }) {
     toggleTodayTask, removeFromToday,
     addToToday, addToScheduled,
     getColorForProjectId, getScheduledDateForTask, getTaskTime,
-    editSubtask, deleteSubtask, reorderSubtasks,
+    editSubtask, deleteSubtask, reorderSubtasks, moveTaskUnder, moveTaskBeside,
     addRecurringToToday, addRecurringToDate, toggleRecurring, deleteRecurring,
     archiveProject, restoreProject, deleteProject, reorderProjects,
     hasNonTodaySelection, selectedDateKey, selectedDateLabel,
@@ -214,10 +214,39 @@ export default function Sidebar({ ctx }) {
                             addToToday={addToToday} addToScheduled={addToScheduled}
                             getScheduledDateForTask={getScheduledDateForTask} getTaskTime={getTaskTime}
                             editSubtask={editSubtask} deleteSubtask={deleteSubtask}
-                            reorderSubtasks={reorderSubtasks} setModal={setModal}
+                            reorderSubtasks={reorderSubtasks} moveTaskUnder={moveTaskUnder} moveTaskBeside={moveTaskBeside} setModal={setModal}
                             getColorForProjectId={getColorForProjectId}
                           />
                         ))}
+                        {/* 빈 영역 드롭존: 최상위 레벨 맨 끝에 추가 */}
+                        <div
+                          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.style.borderTop = `2.5px solid ${pc.color}`; }}
+                          onDragLeave={(e) => { e.currentTarget.style.borderTop = "none"; }}
+                          onDrop={(e) => {
+                            e.preventDefault(); e.stopPropagation();
+                            e.currentTarget.style.borderTop = "none";
+                            try {
+                              const d = JSON.parse(e.dataTransfer.getData("text/plain"));
+                              // 이미 최상위 맨 끝이면 무시
+                              const lastRoot = p.subtasks[p.subtasks.length - 1];
+                              if (lastRoot && lastRoot.id === d.taskId) return;
+                              // 최상위에 있으면 순서만 변경 (맨 끝으로)
+                              const fi = p.subtasks.findIndex((s) => s.id === d.taskId);
+                              if (fi !== -1) {
+                                const na = [...p.subtasks];
+                                const [m] = na.splice(fi, 1);
+                                na.push(m);
+                                reorderSubtasks(p.id, null, na);
+                              } else {
+                                // 하위에서 꺼내기: 맨 마지막 최상위 태스크 아래로 beside
+                                if (lastRoot) {
+                                  moveTaskBeside(p.id, d.taskId, lastRoot.id, "below");
+                                }
+                              }
+                            } catch (err) {}
+                          }}
+                          style={{ minHeight: 10, borderRadius: 8 }}
+                        />
                       </div>
                     )}
                   </div>
