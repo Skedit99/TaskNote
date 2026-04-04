@@ -726,6 +726,28 @@ app.whenReady().then(() => {
   const settingsJsonPath = path.join(dbDir, SETTINGS_FILE);
   migrateSettingsToSqlite(settingsJsonPath, getDatabase());
 
+  // ── 클라우드 동기화: sync.json이 DB보다 최신이면 DB에 반영 ──
+  // (서브PC 업데이트 후 구 로컬 JSON만 마이그레이션되어 최신 데이터를 놓치는 문제 방지)
+  const customPath = getCustomDataPath();
+  if (customPath) {
+    try {
+      const syncFilePath = path.join(customPath, SYNC_FILE);
+      if (fs.existsSync(syncFilePath)) {
+        const syncData = JSON.parse(fs.readFileSync(syncFilePath, 'utf-8'));
+        const dbLastUpdated = sqliteStorage.getLastUpdated();
+        const syncLastUpdated = syncData?.lastUpdated || 0;
+        if (syncLastUpdated > dbLastUpdated) {
+          console.log(`[Startup] sync.json이 DB보다 최신 (sync: ${syncLastUpdated}, db: ${dbLastUpdated}) → DB에 반영`);
+          sqliteStorage.saveAllData(syncData);
+        } else {
+          console.log(`[Startup] DB가 최신이거나 동일 (sync: ${syncLastUpdated}, db: ${dbLastUpdated}) → 스킵`);
+        }
+      }
+    } catch (e) {
+      console.error('[Startup] sync.json 확인 실패:', e.message);
+    }
+  }
+
   createWindow();
   createTray();
   setupAutoUpdater();

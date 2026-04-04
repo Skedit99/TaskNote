@@ -28,6 +28,7 @@ export function useStorage() {
   const settingsDirtyRef = useRef(false);
   const externalUpdateRef = useRef(false);  // 외부 데이터 수신 시 저장 방지 플래그
   const lastSavedTimestampRef = useRef(0);  // 마지막 저장 시 사용한 lastUpdated
+  const initialLoadDoneRef = useRef(false); // 초기 로드 완료 플래그 (save-back 방지)
 
   useEffect(() => {
     const loadAll = async () => {
@@ -69,6 +70,13 @@ export function useStorage() {
   useEffect(() => {
     if (!loaded) return;
     latestDataRef.current = data;
+
+    // 초기 로드 시 save-back 방지: 첫 로드 완료 직후의 data 변경은 저장하지 않음
+    // (구 데이터에 새 timestamp를 부여하여 sync.json을 덮어쓰는 문제 방지)
+    if (!initialLoadDoneRef.current) {
+      initialLoadDoneRef.current = true;
+      return;
+    }
 
     // 외부 데이터 수신(onExternalDataChanged)으로 인한 변경은 저장하지 않음 (무한 루프 방지)
     if (externalUpdateRef.current) {
