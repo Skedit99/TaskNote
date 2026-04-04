@@ -12,6 +12,7 @@ export default function TaskItem({
 }) {
   // "none" | "nest" | "above" | "below"
   const [dropZone, setDropZone] = React.useState("none");
+  const dragCounterRef = React.useRef(0);
   const isInToday = data.todayTasks.some((tt) => tt.taskId === task.id);
   const hasChildren = task.children?.length > 0;
   const isExp = expanded[task.id];
@@ -22,19 +23,23 @@ export default function TaskItem({
   const isScheduled = !!existingSched;
   const pc = getColorForProjectId(projectId);
 
-  const insertLine = (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, margin: `2px 0 2px ${depth * 20}px`, height: 4 }}>
-      <div style={{ width: 8, height: 8, borderRadius: "50%", background: pc.color, flexShrink: 0 }} />
-      <div style={{ flex: 1, height: 2.5, borderRadius: 2, background: pc.color }} />
-    </div>
-  );
+  const insertLineStyle = (pos) => ({
+    position: "absolute", left: depth * 20, right: 0, [pos]: -3, zIndex: 10,
+    display: "flex", alignItems: "center", gap: 6, height: 4, pointerEvents: "none",
+  });
 
   return (
-    <div key={task.id}>
-      {dropZone === "above" && insertLine}
+    <div key={task.id} style={{ position: "relative" }}>
+      {dropZone === "above" && (
+        <div style={insertLineStyle("top")}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: pc.color, flexShrink: 0 }} />
+          <div style={{ flex: 1, height: 2.5, borderRadius: 2, background: pc.color }} />
+        </div>
+      )}
       <div
         draggable={editingTask !== task.id}
         onDragStart={(e) => { if (editingTask === task.id) { e.preventDefault(); return; } e.dataTransfer.setData("text/plain", JSON.stringify({ taskId: task.id })); e.stopPropagation(); }}
+        onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); dragCounterRef.current++; }}
         onDragOver={(e) => {
           e.preventDefault(); e.stopPropagation();
           const rect = e.currentTarget.getBoundingClientRect();
@@ -45,11 +50,13 @@ export default function TaskItem({
           else setDropZone("nest");
         }}
         onDragLeave={(e) => {
-          if (e.currentTarget.contains(e.relatedTarget)) return;
-          setDropZone("none");
+          e.stopPropagation();
+          dragCounterRef.current--;
+          if (dragCounterRef.current <= 0) { dragCounterRef.current = 0; setDropZone("none"); }
         }}
         onDrop={(e) => {
           e.preventDefault(); e.stopPropagation();
+          dragCounterRef.current = 0;
           const zone = dropZone;
           setDropZone("none");
           try {
@@ -88,7 +95,7 @@ export default function TaskItem({
           padding: "7px 10px", borderRadius: 10,
           border: isInToday && !task.done ? `1.5px solid ${pc.color}88` : `1px solid ${T.border}`,
           background: isScheduled && !task.done ? pc.light + "88" : isInToday && !task.done ? pc.light + "88" : T.surfaceBg,
-          marginBottom: 3, minHeight: 42, marginLeft: depth * 20,
+          marginBottom: 5, minHeight: 42, marginLeft: depth * 20,
           opacity: task.done && !hasChildren ? 0.4 : 1,
           ...(depth > 0 ? { borderLeft: `3px solid ${bc}33` } : {}),
           ...(dropZone === "nest" ? { outline: `2px dashed ${pc.color}`, outlineOffset: -2, background: pc.light + "cc" } : {}),
@@ -184,7 +191,12 @@ export default function TaskItem({
           ))}
         </div>
       )}
-      {dropZone === "below" && insertLine}
+      {dropZone === "below" && (
+        <div style={insertLineStyle("bottom")}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: pc.color, flexShrink: 0 }} />
+          <div style={{ flex: 1, height: 2.5, borderRadius: 2, background: pc.color }} />
+        </div>
+      )}
     </div>
   );
 }
