@@ -1,76 +1,150 @@
 // ═══════════════════════════════
 // Google Calendar 동기화 모듈
 // ═══════════════════════════════
-// 단방향 push: 앱 → Google Calendar
-// 매핑 파일 + 오프라인 큐 관리
+// 양방향 sync: 앱 ↔ Google Calendar
+// 매핑 + 오프라인 큐: SQLite DB 기반 (v5+)
 
-const fs = require('fs');
-const path = require('path');
 const { google } = require('googleapis');
 const { getAuthenticatedClient } = require('./google-auth');
+const { getDatabase } = require('./database');
+const crypto = require('crypto');
 
-const MAPPING_FILE = 'gcal-mapping.json';
-const QUEUE_FILE = 'gcal-queue.json';
+// ── 동시 create 방지 (같은 localId에 대한 중복 GCal 이벤트 생성 방지) ──
+const _createInFlight = new Map(); // localId → Promise
 
-// ── 매핑 캐시 ──
-let cachedMapping = null;
+// ── 매핑 (항상 DB에서 직접 읽기 — 캐시 없음) ──
 
-// ── 매핑 파일 (localId → gcalEventId) ──
-function getMappingPath(app) {
-  return path.join(app.getPath('userData'), MAPPING_FILE);
-}
-
-function loadMapping(app) {
-  if (cachedMapping) return cachedMapping;
+function loadMapping() {
+  const db = getDatabase();
+  if (!db) return {};
   try {
-    const p = getMappingPath(app);
-    if (fs.existsSync(p)) {
-      cachedMapping = JSON.parse(fs.readFileSync(p, 'utf-8'));
-      return cachedMapping;
+    const rows = db.prepare('SELECT * FROM gcal_mappings').all();
+    const mapping = {};
+    for (const row of rows) {
+      mapping[row.local_id] = {
+        gcalEventId: row.gcal_event_id,
+        lastSynced: row.last_synced,
+        type: row.type || 'event',
+        date: row.date_key,
+        summary: row.summary,
+        syncHash: row.sync_hash || null,
+      };
     }
+    return mapping;
   } catch (e) {
     console.error('매핑 로드 실패:', e.message);
+    return {};
   }
-  cachedMapping = {};
-  return cachedMapping;
 }
 
-function saveMapping(app, mapping) {
+function saveMapping(mapping) {
+  const db = getDatabase();
+  if (!db) return;
   try {
-    cachedMapping = mapping;
-    fs.writeFileSync(getMappingPath(app), JSON.stringify(mapping, null, 2), 'utf-8');
+    const upsert = db.prepare(`
+      INSERT INTO gcal_mappings (local_id, gcal_event_id, last_synced, type, date_key, summary, sync_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(local_id) DO UPDATE SET
+        gcal_event_id=excluded.gcal_event_id, last_synced=excluded.last_synced,
+        type=excluded.type, date_key=excluded.date_key, summary=excluded.summary, sync_hash=excluded.sync_hash
+    `);
+    const incomingIds = new Set(Object.keys(mapping));
+
+    db.transaction(() => {
+      for (const [localId, entry] of Object.entries(mapping)) {
+        upsert.run(localId, entry.gcalEventId, entry.lastSynced || null,
+          entry.type || 'event', entry.date || null, entry.summary || null, entry.syncHash || null);
+      }
+      const existingIds = db.prepare('SELECT local_id FROM gcal_mappings').all().map(r => r.local_id);
+      const toDelete = existingIds.filter(id => !incomingIds.has(id));
+      if (toDelete.length > 0 && incomingIds.size === 0) {
+        console.log(`[GCal] 매핑 전체 초기화: ${toDelete.length}건 삭제`);
+      }
+      for (const id of toDelete) {
+        db.prepare('DELETE FROM gcal_mappings WHERE local_id = ?').run(id);
+      }
+    })();
   } catch (e) {
     console.error('매핑 저장 실패:', e.message);
   }
 }
 
-// ── 오프라인 큐 ──
-function getQueuePath(app) {
-  return path.join(app.getPath('userData'), QUEUE_FILE);
+// 개별 매핑 엔트리만 빠르게 업데이트 (전체 saveMapping 없이)
+function updateMappingEntry(localId, entry) {
+  const db = getDatabase();
+  if (!db) return;
+  try {
+    db.prepare(`
+      INSERT INTO gcal_mappings (local_id, gcal_event_id, last_synced, type, date_key, summary, sync_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(local_id) DO UPDATE SET
+        gcal_event_id=excluded.gcal_event_id, last_synced=excluded.last_synced,
+        type=excluded.type, date_key=excluded.date_key, summary=excluded.summary, sync_hash=excluded.sync_hash
+    `).run(localId, entry.gcalEventId, entry.lastSynced || null,
+      entry.type || 'event', entry.date || null, entry.summary || null, entry.syncHash || null);
+  } catch (e) {
+    console.error('매핑 엔트리 업데이트 실패:', e.message);
+  }
 }
 
-function loadQueue(app) {
+function deleteMappingEntry(localId) {
+  const db = getDatabase();
+  if (!db) return;
   try {
-    const p = getQueuePath(app);
-    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8'));
+    db.prepare('DELETE FROM gcal_mappings WHERE local_id = ?').run(localId);
+  } catch (e) {
+    console.error('매핑 엔트리 삭제 실패:', e.message);
+  }
+}
+
+// ── Sync Hash (변경 기반 Push용) ──
+function computeSyncHash(summary, description, date, time, endTime) {
+  const input = `${summary || ''}|${description || ''}|${date || ''}|${time || ''}|${endTime || ''}`;
+  return crypto.createHash('md5').update(input).digest('hex').slice(0, 16);
+}
+
+// ── 오프라인 큐 (DB 기반) ──
+function loadQueue() {
+  const db = getDatabase();
+  if (!db) return [];
+  try {
+    return db.prepare('SELECT * FROM gcal_queue ORDER BY rowid').all().map(row => ({
+      action: row.action,
+      localId: row.local_id,
+      payload: JSON.parse(row.payload || '{}'),
+      timestamp: row.timestamp,
+    }));
   } catch (e) {
     console.error('큐 로드 실패:', e.message);
+    return [];
   }
-  return [];
 }
 
-function saveQueue(app, queue) {
+function saveQueue(queue) {
+  const db = getDatabase();
+  if (!db) return;
   try {
-    fs.writeFileSync(getQueuePath(app), JSON.stringify(queue, null, 2), 'utf-8');
+    db.transaction(() => {
+      db.prepare('DELETE FROM gcal_queue').run();
+      const ins = db.prepare('INSERT INTO gcal_queue (action, local_id, payload, timestamp) VALUES (?, ?, ?, ?)');
+      for (const entry of queue) {
+        ins.run(entry.action, entry.localId, JSON.stringify(entry.payload || {}), entry.timestamp || null);
+      }
+    })();
   } catch (e) {
     console.error('큐 저장 실패:', e.message);
   }
 }
 
-function enqueue(app, entry) {
-  const queue = loadQueue(app);
-  queue.push({ ...entry, timestamp: new Date().toISOString() });
-  saveQueue(app, queue);
+function enqueue(entry) {
+  const db = getDatabase();
+  if (!db) return;
+  try {
+    db.prepare('INSERT INTO gcal_queue (action, local_id, payload, timestamp) VALUES (?, ?, ?, ?)')
+      .run(entry.action, entry.localId, JSON.stringify(entry.payload || {}), new Date().toISOString());
+  } catch (e) {
+    console.error('큐 추가 실패:', e.message);
+  }
 }
 
 // ── 네트워크 오류 판별 ──
@@ -90,19 +164,16 @@ function isNetworkError(err) {
   );
 }
 
-// ── Rate Limit (429) 판별 ──
 function isRateLimited(err) {
   return err.code === 429 || err.status === 429 ||
     (err.message || '').includes('429') ||
     (err.message || '').toLowerCase().includes('rate limit');
 }
 
-// ── 딜레이 유틸 ──
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// ── 지수 백오프 재시도 래퍼 ──
 async function withRetry(fn, { maxRetries = 3, baseDelay = 1000 } = {}) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -114,7 +185,7 @@ async function withRetry(fn, { maxRetries = 3, baseDelay = 1000 } = {}) {
         console.log(`[GCal] 재시도 ${attempt + 1}/${maxRetries} (${Math.round(wait)}ms 후)`);
         await delay(wait);
       } else {
-        throw err; // 재시도 불가능한 오류는 즉시 throw
+        throw err;
       }
     }
   }
@@ -136,7 +207,7 @@ function buildEventResource(summary, description, date, time, endTime) {
       endStr = `${date}T${endTime}:00`;
     } else {
       const startDate = new Date(startDT);
-      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1시간
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
       const pad = (n) => String(n).padStart(2, '0');
       endStr = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}T${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:00`;
     }
@@ -144,9 +215,7 @@ function buildEventResource(summary, description, date, time, endTime) {
     resource.start = { dateTime: startDT, timeZone: tz };
     resource.end = { dateTime: endStr, timeZone: tz };
   } else {
-    // 종일 이벤트
     resource.start = { date };
-    // Google Calendar 종일 이벤트는 end가 다음날이어야 함
     const d = new Date(date);
     d.setDate(d.getDate() + 1);
     const pad = (n) => String(n).padStart(2, '0');
@@ -154,42 +223,43 @@ function buildEventResource(summary, description, date, time, endTime) {
     resource.end = { date: endDate };
   }
 
-  // TaskNote에서 생성한 이벤트 식별자 (import 시 필터링용)
   resource.extendedProperties = { private: { tasknote: 'true' } };
-
   return resource;
 }
 
 // ── CREATE ──
-async function createGcalEvent(app, { localId, summary, description, date, time, endTime, type }) {
-  // 이미 매핑이 있으면 중복 생성 방지 (변경 감지 시 update)
-  const existingMapping = loadMapping(app);
+async function createGcalEvent({ localId, summary, description, date, time, endTime, type }) {
+  // 동일 localId에 대한 동시 create 방지 (레이스 컨디션으로 GCal 중복 생성 차단)
+  if (_createInFlight.has(localId)) {
+    try { return await _createInFlight.get(localId); } catch { return null; }
+  }
+  const promise = _createGcalEventInner({ localId, summary, description, date, time, endTime, type });
+  _createInFlight.set(localId, promise);
+  try { return await promise; } finally { _createInFlight.delete(localId); }
+}
+
+async function _createGcalEventInner({ localId, summary, description, date, time, endTime, type }) {
+  const existingMapping = loadMapping();
   if (existingMapping[localId]?.gcalEventId) {
     const existing = existingMapping[localId];
-
-    // 날짜나 제목 변경 → update 시도
     if (existing.date !== date || existing.summary !== summary) {
-      console.log(`[GCal] 매핑 존재하지만 변경 감지, 업데이트: ${localId}`);
       existing.date = date;
       existing.summary = summary;
-      saveMapping(app, existingMapping);
-
-      const updateResult = await updateGcalEvent(app, { localId, summary, description, date, time });
+      existing.syncHash = computeSyncHash(summary, description, date, time, endTime);
+      updateMappingEntry(localId, existing);
+      const updateResult = await updateGcalEvent({ localId, summary, description, date, time });
       if (updateResult === null) {
-        // update 실패 (404 등) → 매핑 이미 삭제됨 → 아래에서 새로 생성
         console.log(`[GCal] 업데이트 실패, 재생성 시도: ${localId}`);
       } else {
         return { gcalEventId: existing.gcalEventId };
       }
     } else {
-      // 변경 없음 → 매핑 신뢰 (완료 상태가 삭제/재생성을 유발하지 않으므로 매핑 안정적)
       return { gcalEventId: existing.gcalEventId };
     }
   }
 
-  // 매핑 없음 → 새로 생성
   const client = await getAuthenticatedClient();
-  if (!client) return null; // 연결 안 됨 → 무시
+  if (!client) return null;
 
   const calendar = google.calendar({ version: 'v3', auth: client });
   const resource = buildEventResource(summary, description, date, time, endTime);
@@ -201,22 +271,22 @@ async function createGcalEvent(app, { localId, summary, description, date, time,
     }));
 
     const gcalEventId = res.data.id;
-    const mapping = loadMapping(app);
-    mapping[localId] = {
+    const entry = {
       gcalEventId,
       lastSynced: new Date().toISOString(),
       type: type || 'event',
       date,
       summary,
+      syncHash: computeSyncHash(summary, description, date, time, endTime),
     };
-    saveMapping(app, mapping);
+    updateMappingEntry(localId, entry);
 
     console.log(`[GCal] 생성 완료: ${summary} → ${gcalEventId}`);
     return { gcalEventId };
   } catch (err) {
     if (isNetworkError(err) || isRateLimited(err)) {
       console.warn('[GCal] 네트워크/Rate Limit 오류 → 큐에 저장:', summary);
-      enqueue(app, { action: 'create', localId, payload: { summary, description, date, time, type } });
+      enqueue({ action: 'create', localId, payload: { summary, description, date, time, type } });
     } else {
       console.error('[GCal] 생성 실패:', err.message);
     }
@@ -225,12 +295,11 @@ async function createGcalEvent(app, { localId, summary, description, date, time,
 }
 
 // ── UPDATE ──
-async function updateGcalEvent(app, { localId, summary, description, date, time }) {
-  const mapping = loadMapping(app);
+async function updateGcalEvent({ localId, summary, description, date, time }) {
+  const mapping = loadMapping();
   const entry = mapping[localId];
 
   if (!entry?.gcalEventId) {
-    // 매핑 없음 → 큐에 create로 저장 (오프라인 생성 후 수정된 경우)
     console.log('[GCal] 매핑 없음, 업데이트 건너뜀:', localId);
     return null;
   }
@@ -240,9 +309,7 @@ async function updateGcalEvent(app, { localId, summary, description, date, time 
 
   const calendar = google.calendar({ version: 'v3', auth: client });
 
-  // patch용 리소스: undefined 필드는 전송 안 됨
   const resource = {};
-  // 기존 이벤트에도 TaskNote 식별자 추가 (마이그레이션)
   resource.extendedProperties = { private: { tasknote: 'true' } };
   if (summary !== undefined) resource.summary = summary;
   if (description !== undefined) resource.description = description;
@@ -251,7 +318,6 @@ async function updateGcalEvent(app, { localId, summary, description, date, time 
     resource.start = full.start;
     resource.end = full.end;
   } else if (time !== undefined) {
-    // 시간만 변경 — 기존 date 사용
     const useDate = entry.date || new Date().toISOString().slice(0, 10);
     const full = buildEventResource(summary || '', description || '', useDate, time);
     resource.start = full.start;
@@ -267,19 +333,19 @@ async function updateGcalEvent(app, { localId, summary, description, date, time 
 
     entry.lastSynced = new Date().toISOString();
     if (date) entry.date = date;
-    saveMapping(app, mapping);
+    if (summary !== undefined) entry.summary = summary;
+    entry.syncHash = computeSyncHash(summary || entry.summary, description, date || entry.date, time, null);
+    updateMappingEntry(localId, entry);
 
     console.log(`[GCal] 수정 완료: ${localId} → ${entry.gcalEventId}`);
     return { gcalEventId: entry.gcalEventId };
   } catch (err) {
     if (err.code === 404 || err.status === 404) {
-      // Google에서 이미 삭제됨 → 매핑 제거 (createGcalEvent에서 재생성 처리)
       console.warn('[GCal] 이벤트가 Google에서 삭제됨, 매핑 제거:', localId);
-      delete mapping[localId];
-      saveMapping(app, mapping);
+      deleteMappingEntry(localId);
     } else if (isNetworkError(err) || isRateLimited(err)) {
       console.warn('[GCal] 네트워크/Rate Limit 오류 → 큐에 저장:', localId);
-      enqueue(app, { action: 'update', localId, payload: { summary, description, date, time } });
+      enqueue({ action: 'update', localId, payload: { summary, description, date, time } });
     } else {
       console.error('[GCal] 수정 실패:', err.message);
     }
@@ -288,20 +354,19 @@ async function updateGcalEvent(app, { localId, summary, description, date, time 
 }
 
 // ── DELETE ──
-async function deleteGcalEvent(app, { localId }) {
-  const mapping = loadMapping(app);
+async function deleteGcalEvent({ localId }) {
+  const mapping = loadMapping();
   const entry = mapping[localId];
 
   if (!entry?.gcalEventId) {
     console.log('[GCal] 매핑 없음, 삭제 건너뜀:', localId);
-    return { success: true }; // 매핑 없으면 GCal에도 없으므로 성공 취급
+    return { success: true };
   }
 
   const client = await getAuthenticatedClient();
   if (!client) {
-    // 인증 안 됨 → 매핑을 유지하고 큐에 저장 (나중에 재시도)
     console.warn('[GCal] 인증 안 됨 → 큐에 저장:', localId);
-    enqueue(app, { action: 'delete', localId, payload: {} });
+    enqueue({ action: 'delete', localId, payload: {} });
     return null;
   }
 
@@ -313,22 +378,17 @@ async function deleteGcalEvent(app, { localId }) {
       eventId: entry.gcalEventId,
     }));
 
-    // GCal에서 성공적으로 삭제된 후에만 매핑 제거
-    delete mapping[localId];
-    saveMapping(app, mapping);
+    deleteMappingEntry(localId);
 
     console.log(`[GCal] 삭제 완료: ${localId} → ${entry.gcalEventId}`);
     return { success: true };
   } catch (err) {
     if (err.code === 404 || err.status === 404) {
-      // GCal에서 이미 삭제됨 → 매핑 제거 (동기화 확정)
-      delete mapping[localId];
-      saveMapping(app, mapping);
+      deleteMappingEntry(localId);
       return { success: true };
     } else if (isNetworkError(err) || isRateLimited(err)) {
-      // 매핑 유지한 채 큐에 저장 (fetchGcalEvents에서 재import 방지)
       console.warn('[GCal] 네트워크/Rate Limit 오류 → 큐에 저장:', localId);
-      enqueue(app, { action: 'delete', localId, payload: {} });
+      enqueue({ action: 'delete', localId, payload: {} });
     } else {
       console.error('[GCal] 삭제 실패:', err.message);
     }
@@ -336,42 +396,40 @@ async function deleteGcalEvent(app, { localId }) {
   }
 }
 
-// ── 다중 삭제 (프로젝트 삭제 시) ──
-async function deleteMultipleGcalEvents(app, { localIds }) {
+// ── 다중 삭제 ──
+async function deleteMultipleGcalEvents({ localIds }) {
   const results = [];
   for (const localId of localIds) {
-    const r = await deleteGcalEvent(app, { localId });
+    const r = await deleteGcalEvent({ localId });
     results.push(r);
   }
   return results;
 }
 
 // ── 오프라인 큐 처리 ──
-async function processOfflineQueue(app) {
+async function processOfflineQueue() {
   const client = await getAuthenticatedClient();
   if (!client) return { processed: 0, remaining: 0 };
 
-  let queue = loadQueue(app);
+  let queue = loadQueue();
   if (queue.length === 0) return { processed: 0, remaining: 0 };
 
   console.log(`[GCal] 오프라인 큐 처리 시작: ${queue.length}건`);
 
-  // 큐 최적화: 같은 localId에 대해 create→delete 쌍이면 둘 다 제거
   const optimized = [];
   const deleteIds = new Set(queue.filter(q => q.action === 'delete').map(q => q.localId));
 
   for (const entry of queue) {
     if (entry.action === 'create' && deleteIds.has(entry.localId)) {
-      deleteIds.delete(entry.localId); // 쌍 제거
+      deleteIds.delete(entry.localId);
       continue;
     }
     if (entry.action === 'delete' && !deleteIds.has(entry.localId)) {
-      continue; // 위에서 create와 함께 제거됨
+      continue;
     }
     optimized.push(entry);
   }
 
-  // 같은 localId의 중복 update는 마지막 것만 유지
   const updateMap = new Map();
   const final = [];
   for (const entry of optimized) {
@@ -388,41 +446,39 @@ async function processOfflineQueue(app) {
 
   for (let idx = 0; idx < final.length; idx++) {
     const entry = final[idx];
-    // 요청 간 300ms 딜레이 (첫 번째 제외) — Rate Limit 방지
     if (idx > 0) await delay(300);
     try {
       if (entry.action === 'create') {
-        await createGcalEvent(app, { localId: entry.localId, ...entry.payload });
+        await createGcalEvent({ localId: entry.localId, ...entry.payload });
       } else if (entry.action === 'update') {
-        await updateGcalEvent(app, { localId: entry.localId, ...entry.payload });
+        await updateGcalEvent({ localId: entry.localId, ...entry.payload });
       } else if (entry.action === 'delete') {
-        await deleteGcalEvent(app, { localId: entry.localId });
+        await deleteGcalEvent({ localId: entry.localId });
       }
       processed++;
     } catch (err) {
       if (isNetworkError(err) || isRateLimited(err)) {
-        remaining.push(entry); // 네트워크/Rate Limit → 다시 큐에
+        remaining.push(entry);
       } else {
-        processed++; // 다른 오류는 포기
+        processed++;
         console.error('[GCal] 큐 항목 처리 실패:', err.message);
       }
     }
   }
 
-  saveQueue(app, remaining);
+  saveQueue(remaining);
   console.log(`[GCal] 큐 처리 완료: ${processed}건 처리, ${remaining.length}건 남음`);
   return { processed, remaining: remaining.length };
 }
 
-// ── FETCH: Google Calendar → 앱 (Pull) ──
-async function fetchGcalEvents(app, { timeMin, timeMax }) {
+// ── FETCH: Google Calendar → 앱 (Pull - 새 이벤트 import) ──
+async function fetchGcalEvents({ timeMin, timeMax }) {
   const client = await getAuthenticatedClient();
   if (!client) return { success: false, events: [], error: 'not_connected' };
 
   const calendar = google.calendar({ version: 'v3', auth: client });
-  const mapping = loadMapping(app);
+  const mapping = loadMapping();
 
-  // 이미 앱에서 push한 gcalEventId 목록 (중복 import 방지)
   const pushedGcalIds = new Set(Object.values(mapping).map((m) => m.gcalEventId));
 
   try {
@@ -439,21 +495,15 @@ async function fetchGcalEvents(app, { timeMin, timeMax }) {
     const importable = [];
 
     for (const ev of gcalEvents) {
-      // 앱에서 push한 이벤트는 건너뜀 (매핑 기반)
       if (pushedGcalIds.has(ev.id)) continue;
-      // TaskNote가 생성한 이벤트는 건너뜀 (식별자 기반 — 매핑 유실 시에도 안전)
       if (ev.extendedProperties?.private?.tasknote === 'true') continue;
-      // 취소된 이벤트 건너뜀
       if (ev.status === 'cancelled') continue;
 
-      // 날짜 파싱
       let date = '';
       let time = '';
       if (ev.start?.date) {
-        // 종일 이벤트
         date = ev.start.date;
       } else if (ev.start?.dateTime) {
-        // 시간 지정 이벤트
         const dt = new Date(ev.start.dateTime);
         const pad = (n) => String(n).padStart(2, '0');
         date = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
@@ -479,18 +529,126 @@ async function fetchGcalEvents(app, { timeMin, timeMax }) {
   }
 }
 
+// ── PULL: 앱이 Push한 이벤트의 GCal 쪽 변경사항 감지 ──
+async function pullChangesFromGcal({ timeMin, timeMax }) {
+  const client = await getAuthenticatedClient();
+  if (!client) return { success: false, changes: [], error: 'not_connected' };
+
+  const calendar = google.calendar({ version: 'v3', auth: client });
+
+  try {
+    // tasknote=true 이벤트만 조회 (앱이 push한 이벤트 + imported 이벤트)
+    const res = await withRetry(() => calendar.events.list({
+      calendarId: 'primary',
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 500,
+      privateExtendedProperty: 'tasknote=true',
+    }));
+
+    const gcalEvents = res.data.items || [];
+    const mapping = loadMapping();
+
+    // gcalEventId → localId 역방향 맵
+    const gcalIdToLocal = new Map();
+    for (const [localId, entry] of Object.entries(mapping)) {
+      if (entry.gcalEventId) gcalIdToLocal.set(entry.gcalEventId, { localId, ...entry });
+    }
+
+    const changes = [];
+    const pad = (n) => String(n).padStart(2, '0');
+
+    for (const ev of gcalEvents) {
+      if (ev.status === 'cancelled') continue;
+      const local = gcalIdToLocal.get(ev.id);
+      if (!local) continue;
+
+      // GCal에서 현재 값 추출
+      let gcalDate = '';
+      let gcalTime = '';
+      if (ev.start?.date) {
+        gcalDate = ev.start.date;
+      } else if (ev.start?.dateTime) {
+        const dt = new Date(ev.start.dateTime);
+        gcalDate = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+        gcalTime = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+      }
+
+      const gcalSummary = ev.summary || '';
+      const gcalDescription = ev.description || '';
+
+      // 로컬 매핑과 비교하여 변경사항 감지
+      const change = {
+        localId: local.localId,
+        type: local.type,
+        gcalEventId: ev.id,
+      };
+
+      let hasChange = false;
+
+      // 제목 변경 감지
+      if (local.summary !== undefined && gcalSummary !== local.summary) {
+        change.summaryChanged = true;
+        change.newSummary = gcalSummary;
+        change.oldSummary = local.summary;
+
+        // "(완료)" 태그 변경 감지
+        const wasCompleted = (local.summary || '').startsWith('(완료)');
+        const isNowCompleted = gcalSummary.startsWith('(완료)');
+        if (wasCompleted && !isNowCompleted) {
+          change.completionChanged = 'uncompleted';
+          change.cleanName = gcalSummary;
+        } else if (!wasCompleted && isNowCompleted) {
+          change.completionChanged = 'completed';
+          change.cleanName = gcalSummary.replace(/^\(완료\)\s*/, '');
+        }
+
+        hasChange = true;
+      }
+
+      // 날짜 변경 감지
+      if (local.date && gcalDate && gcalDate !== local.date) {
+        change.dateChanged = true;
+        change.newDate = gcalDate;
+        change.oldDate = local.date;
+        hasChange = true;
+      }
+
+      // 시간 변경 감지 (시간 정보가 있는 경우만)
+      if (gcalTime) {
+        change.newTime = gcalTime;
+        // 시간 비교는 syncHash로 간접 감지
+      }
+
+      if (hasChange) {
+        changes.push(change);
+      }
+    }
+
+    if (changes.length > 0) {
+      console.log(`[GCal] Pull: ${changes.length}건 변경 감지`);
+    }
+
+    return { success: true, changes };
+  } catch (err) {
+    console.error('[GCal] Pull 실패:', err.message);
+    return { success: false, changes: [], error: err.message };
+  }
+}
+
 // ── 가져온 이벤트의 매핑 저장 + GCal에 TaskNote 식별자 추가 ──
-async function saveImportMapping(app, localId, gcalEventId, date) {
-  const mapping = loadMapping(app);
-  mapping[localId] = {
+async function saveImportMapping(localId, gcalEventId, date) {
+  const entry = {
     gcalEventId,
     lastSynced: new Date().toISOString(),
     type: 'imported',
     date,
+    syncHash: null,
   };
-  saveMapping(app, mapping);
+  updateMappingEntry(localId, entry);
 
-  // GCal 이벤트에 TaskNote 식별자 추가 (이후 매핑 유실 시에도 재import 방지)
   try {
     const client = await getAuthenticatedClient();
     if (!client) return;
@@ -501,13 +659,12 @@ async function saveImportMapping(app, localId, gcalEventId, date) {
       resource: { extendedProperties: { private: { tasknote: 'true' } } },
     });
   } catch (e) {
-    // 실패해도 매핑은 이미 저장됨 — 식별자는 보조 수단
     console.warn('[GCal] import 식별자 추가 실패:', e.message);
   }
 }
 
 // ── FETCH: 공휴일 캘린더 ──
-async function fetchHolidays(app, { timeMin, timeMax }) {
+async function fetchHolidays({ timeMin, timeMax }) {
   const client = await getAuthenticatedClient();
   if (!client) return { success: false, holidays: [], error: 'not_connected' };
 
@@ -536,18 +693,30 @@ async function fetchHolidays(app, { timeMin, timeMax }) {
 }
 
 // ── 매핑 정리: 유효한 localId 목록에 없는 매핑의 GCal 이벤트 삭제 ──
-async function cleanupStaleMapping(app, { validLocalIds }) {
+async function cleanupStaleMapping({ validLocalIds }) {
   const client = await getAuthenticatedClient();
   if (!client) return { deleted: 0 };
 
-  const mapping = loadMapping(app);
+  const mapping = loadMapping();
   const validSet = new Set(validLocalIds);
   const calendar = google.calendar({ version: 'v3', auth: client });
 
-  // imported 타입은 제외 (외부에서 가져온 이벤트)
-  const staleIds = Object.keys(mapping).filter(
-    (id) => !validSet.has(id) && mapping[id].type !== 'imported'
-  );
+  const PAST_DAYS_TO_KEEP = 7;
+  const cutoffDate = new Date();
+  cutoffDate.setHours(0, 0, 0, 0);
+  cutoffDate.setDate(cutoffDate.getDate() - PAST_DAYS_TO_KEEP);
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const cutoffStr = `${cutoffDate.getFullYear()}-${pad2(cutoffDate.getMonth() + 1)}-${pad2(cutoffDate.getDate())}`;
+
+  const staleIds = Object.keys(mapping).filter((id) => {
+    if (validSet.has(id)) return false;
+    if (mapping[id].type === 'imported') return false;
+    if (mapping[id].type === 'recurring' && id.startsWith('recurring:')) {
+      const dateMatch = id.match(/:(\d{4}-\d{2}-\d{2})$/);
+      if (dateMatch && dateMatch[1] >= cutoffStr) return false;
+    }
+    return true;
+  });
 
   if (staleIds.length === 0) return { deleted: 0 };
   console.log(`[GCal] 잔여 매핑 정리 시작: ${staleIds.length}건`);
@@ -555,14 +724,14 @@ async function cleanupStaleMapping(app, { validLocalIds }) {
   let deleted = 0;
   for (const localId of staleIds) {
     const entry = mapping[localId];
-    if (!entry?.gcalEventId) { delete mapping[localId]; continue; }
+    if (!entry?.gcalEventId) { deleteMappingEntry(localId); continue; }
     try {
       await calendar.events.delete({ calendarId: 'primary', eventId: entry.gcalEventId });
-      delete mapping[localId];
+      deleteMappingEntry(localId);
       deleted++;
     } catch (err) {
       if (err.code === 404 || err.status === 404) {
-        delete mapping[localId]; // 이미 삭제됨
+        deleteMappingEntry(localId);
         deleted++;
       } else {
         console.warn(`[GCal] 잔여 삭제 실패: ${localId}`, err.message);
@@ -571,9 +740,143 @@ async function cleanupStaleMapping(app, { validLocalIds }) {
     await delay(300);
   }
 
-  saveMapping(app, mapping);
   console.log(`[GCal] 잔여 매핑 정리 완료: ${deleted}건 삭제`);
   return { deleted };
+}
+
+// ── 중복 이벤트 감지 및 정리 ──
+async function deduplicateGcalEvents({ timeMin, timeMax }) {
+  const client = await getAuthenticatedClient();
+  if (!client) return { success: false, error: 'not_connected', duplicates: 0 };
+
+  const calendar = google.calendar({ version: 'v3', auth: client });
+
+  try {
+    const res = await withRetry(() => calendar.events.list({
+      calendarId: 'primary',
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 500,
+      privateExtendedProperty: 'tasknote=true',
+    }));
+
+    const events = res.data.items || [];
+    if (events.length === 0) return { success: true, duplicates: 0, checked: 0 };
+
+    const groups = new Map();
+    for (const ev of events) {
+      if (ev.status === 'cancelled') continue;
+      const date = ev.start?.date || (ev.start?.dateTime ? ev.start.dateTime.slice(0, 10) : '');
+      if (!date) continue;
+      const cleanSummary = (ev.summary || '').replace(/^\(완료\)\s*/, '');
+      const key = `${date}|${cleanSummary}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(ev);
+    }
+
+    const mapping = loadMapping();
+    let duplicateCount = 0;
+
+    for (const [key, group] of groups) {
+      if (group.length <= 1) continue;
+      const mappedGcalIds = new Set(Object.values(mapping).map(m => m.gcalEventId));
+      group.sort((a, b) => {
+        const aMapped = mappedGcalIds.has(a.id) ? 1 : 0;
+        const bMapped = mappedGcalIds.has(b.id) ? 1 : 0;
+        if (aMapped !== bMapped) return bMapped - aMapped;
+        return new Date(b.updated || 0) - new Date(a.updated || 0);
+      });
+
+      for (let i = 1; i < group.length; i++) {
+        try {
+          await calendar.events.delete({ calendarId: 'primary', eventId: group[i].id });
+          duplicateCount++;
+        } catch (err) {
+          if (err.code !== 404 && err.status !== 404) {
+            console.warn(`[GCal] 중복 삭제 실패: ${group[i].id}`, err.message);
+          }
+        }
+        await delay(200);
+      }
+    }
+
+    console.log(`[GCal] 중복 정리 완료: ${events.length}건 검사, ${duplicateCount}건 삭제`);
+    return { success: true, duplicates: duplicateCount, checked: events.length };
+  } catch (err) {
+    console.error('[GCal] 중복 감지 실패:', err.message);
+    return { success: false, error: err.message, duplicates: 0 };
+  }
+}
+
+// ── 전체 리셋 ──
+async function gcalFullReset() {
+  const client = await getAuthenticatedClient();
+  if (!client) return { success: false, error: 'not_connected' };
+
+  const calendar = google.calendar({ version: 'v3', auth: client });
+  let deleted = 0;
+  let skipped = 0;
+
+  const mapping = loadMapping();
+  const entries = Object.entries(mapping);
+  const toKeep = entries.filter(([, entry]) => entry.type === 'imported');
+  const toDelete = entries.filter(([, entry]) => entry.type !== 'imported');
+  const deletedGcalIds = new Set();
+
+  console.log(`[GCal] 전체 리셋 시작: 매핑 ${toDelete.length}건 + GCal 검색`);
+
+  for (const [localId, entry] of toDelete) {
+    if (!entry?.gcalEventId) { skipped++; continue; }
+    try {
+      await calendar.events.delete({ calendarId: 'primary', eventId: entry.gcalEventId });
+      deletedGcalIds.add(entry.gcalEventId);
+      deleted++;
+    } catch (err) {
+      if (err.code === 404 || err.status === 404) {
+        deletedGcalIds.add(entry.gcalEventId);
+        deleted++;
+      } else {
+        console.warn(`[GCal] 매핑 삭제 실패 (${localId}):`, err.message);
+        skipped++;
+      }
+    }
+    await delay(200);
+  }
+
+  try {
+    const now = new Date();
+    const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+    const timeMax = new Date(now.getFullYear(), now.getMonth() + 3, 0).toISOString();
+    const res = await withRetry(() => calendar.events.list({
+      calendarId: 'primary',
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      maxResults: 500,
+      privateExtendedProperty: 'tasknote=true',
+    }));
+    const orphans = (res.data.items || []).filter((ev) => !deletedGcalIds.has(ev.id));
+    console.log(`[GCal] 고아 이벤트 ${orphans.length}건 발견`);
+    for (const ev of orphans) {
+      try {
+        await calendar.events.delete({ calendarId: 'primary', eventId: ev.id });
+        deleted++;
+      } catch (err) {
+        if (err.code !== 404 && err.status !== 404) skipped++;
+      }
+      await delay(200);
+    }
+  } catch (err) {
+    console.warn('[GCal] 고아 이벤트 검색 실패:', err.message);
+  }
+
+  saveMapping(Object.fromEntries(toKeep));
+  saveQueue([]);
+
+  console.log(`[GCal] 전체 리셋 완료: ${deleted}건 삭제, ${skipped}건 스킵`);
+  return { success: true, deleted, skipped };
 }
 
 module.exports = {
@@ -583,8 +886,12 @@ module.exports = {
   deleteMultipleGcalEvents,
   processOfflineQueue,
   fetchGcalEvents,
+  pullChangesFromGcal,
   fetchHolidays,
   saveImportMapping,
   loadMapping,
   cleanupStaleMapping,
+  gcalFullReset,
+  deduplicateGcalEvents,
+  computeSyncHash,
 };

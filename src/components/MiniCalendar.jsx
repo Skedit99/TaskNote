@@ -8,7 +8,7 @@ export default function MiniCalendar({ ctx }) {
     data, T, isHovered, bgOpacity, cardOpacity, showControls, isLocked,
     calYear, calMonth, calPanelHeight, setCalPanelHeight,
     selectedDay, setSelectedDay, calDays, prevMonth, nextMonth,
-    isTodayDate, getCompForDay, getScheduledForDay, getRecurringForDay, getTodayTasksForDay,
+    isTodayDate, getCompForDay, getScheduledForDay, getRecurringForDay,
     getEventsForDay, getHolidayForDay,
     getColorForProjectId, completeForDate, uncompleteForDate,
     handleLock, handleMiniMode, handleBgOpacity, handleCardOpacity,
@@ -100,14 +100,12 @@ export default function MiniCalendar({ ctx }) {
               const comp = getCompForDay(day);
               const recur = getRecurringForDay(day);
               const sched = getScheduledForDay(day);
-              const todayT = getTodayTasksForDay(day);
               const isSel = selectedDay === day && day !== null;
               const today = isTodayDate(day);
               const holiday = getHolidayForDay(day);
-              const _tIds = new Set(todayT.map((t) => t.taskId));
               const _cIds = new Set(comp.map((c) => c.taskId));
-              const filtSched = sched.filter((s) => !_tIds.has(s.taskId) && !_cIds.has(s.taskId));
-              const cnt = comp.length + recur.length + filtSched.length + todayT.length;
+              const filtSched = sched.filter((s) => !_cIds.has(s.taskId));
+              const cnt = comp.length + recur.length + filtSched.length;
               return (
                 <div key={i} onClick={() => day && setSelectedDay(day === selectedDay ? null : day)}
                   onDoubleClick={() => handleCalendarDoubleClick(day)}
@@ -164,15 +162,12 @@ export default function MiniCalendar({ ctx }) {
 
               const dayComp = getCompForDay(day, year, month);
               const dayCompIds = new Set(dayComp.map((c) => c.taskId));
-              const dayToday = getTodayTasksForDay(day, year, month).filter((t) => !dayCompIds.has(t.taskId));
-              const dayTodayIds = new Set(dayToday.map((t) => t.taskId));
-              const daySched = getScheduledForDay(day, year, month).filter((s) => !dayCompIds.has(s.taskId) && !dayTodayIds.has(s.taskId));
-              const dayRecur = getRecurringForDay(day, year, month).filter((r) => !dayCompIds.has(r.id) && !dayTodayIds.has(r.id));
-              const dayEvents = getEventsForDay(day, year, month).filter((e) => !dayCompIds.has(e.id) && !dayTodayIds.has(e.id));
+              const daySched = getScheduledForDay(day, year, month).filter((s) => !dayCompIds.has(s.taskId));
+              const dayRecur = getRecurringForDay(day, year, month).filter((r) => !dayCompIds.has(r.id));
+              const dayEvents = getEventsForDay(day, year, month).filter((e) => !dayCompIds.has(e.id));
 
               const pending = [
                 ...dayEvents.map((e) => ({ id: e.id, name: e.name, sub: "독립 일정", isEvent: true, item: { projectId: "event", taskId: e.id } })),
-                ...dayToday.map((t) => ({ id: t.taskId, name: t.taskName, sub: t.projectName, item: { projectId: t.projectId, taskId: t.taskId } })),
                 ...daySched.map((s) => ({ id: s.taskId, name: s.taskName, sub: s.projectName, item: { projectId: s.projectId, taskId: s.taskId } })),
                 ...dayRecur.map((r) => ({ id: r.id, name: r.name, sub: r.type === "weekly" ? "주간" : "월간", item: { projectId: "recurring", taskId: r.id } })),
               ];

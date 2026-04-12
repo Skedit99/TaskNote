@@ -46,7 +46,6 @@ export function createProjectActions({ data, updateData, setModal, activeProject
         p.deleted = true;
         p.updatedAt = Date.now();
       }
-      d.todayTasks = d.todayTasks.filter((t) => t.projectId !== id);
       if (d.scheduled) {
         for (const key of Object.keys(d.scheduled)) {
           d.scheduled[key] = d.scheduled[key].filter((s) => s.projectId !== id);
@@ -118,19 +117,26 @@ export function createProjectActions({ data, updateData, setModal, activeProject
   };
 
   const editSubtaskTime = (pid, tid, time, endTime) => {
+    const proj = data.projects.find((x) => x.id === pid);
+    const task = proj ? findTaskById(proj.subtasks || [], tid) : null;
+    const isDone = task?.done;
     updateData((d) => {
       const p = d.projects.find((x) => x.id === pid);
       if (!p) return;
       const t = findTaskById(p.subtasks, tid);
       if (t) { t.time = time || ""; t.endTime = endTime || ""; t.updatedAt = Date.now(); }
     });
+    // GCal에 시간 변경 반영 (완료 상태 유지)
+    if (task) {
+      const summary = isDone ? `(완료) ${task.name}` : task.name;
+      gcal.update({ localId: tid, summary, time: time || "", endTime: endTime || "" });
+    }
   };
 
   const deleteSubtask = (pid, tid) => {
     updateData((d) => {
       const p = d.projects.find((x) => x.id === pid);
       if (p) removeTaskById(p.subtasks, tid);
-      d.todayTasks = d.todayTasks.filter((t) => t.taskId !== tid);
       if (d.scheduled) {
         for (const key of Object.keys(d.scheduled)) {
           d.scheduled[key] = d.scheduled[key].filter((s) => s.taskId !== tid);
@@ -170,8 +176,6 @@ export function createProjectActions({ data, updateData, setModal, activeProject
       target.children.push(clone);
       target.updatedAt = Date.now();
       p.updatedAt = Date.now();
-      // 이동된 태스크의 오늘할일 제거
-      d.todayTasks = d.todayTasks.filter((t) => t.taskId !== draggedId);
       // 이동된 태스크의 예약 일정 제거
       if (d.scheduled) {
         for (const key of Object.keys(d.scheduled)) {
@@ -186,7 +190,8 @@ export function createProjectActions({ data, updateData, setModal, activeProject
         }
       }
     });
-    gcal.del(draggedId);
+    // GCal 이벤트는 삭제하지 않음 — scheduled에서 제거되면 캘린더에서 안 보이고,
+    // 매핑은 유지하여 나중에 다시 일정 등록 시 중복 생성 방지
     setExpanded((p) => ({ ...p, [targetId]: true }));
   };
 

@@ -8,7 +8,6 @@ export const DAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
 
 export const defaultData = {
   projects: [],
-  todayTasks: [],
   completedToday: {},
   recurring: [],
   recurringSkips: {},

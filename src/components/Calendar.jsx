@@ -4,11 +4,11 @@ export default function Calendar({ ctx }) {
   const {
     T, calYear, calMonth, selectedDay, setSelectedDay,
     calDays, prevMonth, nextMonth, isTodayDate,
-    getCompForDay, getScheduledForDay, getRecurringForDay, getTodayTasksForDay,
+    getCompForDay, getScheduledForDay, getRecurringForDay,
     getEventsForDay, deleteEvent, convertEventToSubtask,
     activeProjects, setModal,
     getColorForProjectId, completeForDate, uncompleteForDate,
-    removeFromToday, deleteScheduled, skipRecurringForDate, handleCalendarDoubleClick,
+    deleteScheduled, skipRecurringForDate, handleCalendarDoubleClick,
     calendarRange, getHolidayForDay, data,
   } = ctx;
 
@@ -28,18 +28,17 @@ export default function Calendar({ ctx }) {
 
     const dayComp = getCompForDay(day, year, month);
     const dayCompIds = new Set(dayComp.map((c) => c.taskId));
-    const dayToday = getTodayTasksForDay(day, year, month).filter((t) => !dayCompIds.has(t.taskId));
-    const dayTodayIds = new Set(dayToday.map((t) => t.taskId));
-    const daySched = getScheduledForDay(day, year, month).filter((s) => !dayCompIds.has(s.taskId) && !dayTodayIds.has(s.taskId));
+    const daySched = getScheduledForDay(day, year, month).filter((s) => !dayCompIds.has(s.taskId));
+    const daySchedIds = new Set(daySched.map((s) => s.taskId));
     const dayRecur = getRecurringForDay(day, year, month).filter((r) => !dayCompIds.has(r.id));
-    const dayEvents = getEventsForDay(day, year, month).filter((e) => !dayTodayIds.has(e.id) && !dayCompIds.has(e.id));
+    const dayEvents = getEventsForDay(day, year, month).filter((e) => !dayCompIds.has(e.id));
     const dayQuickEvents = dayEvents.filter((e) => e.quickTaskId);
     const dayRegularEvents = dayEvents.filter((e) => !e.quickTaskId);
 
     // 날짜 범위 모드의 지난 날만 완료 항목 숨기기
     const visibleComp = (isPast && hidePastComp) ? [] : dayComp;
 
-    const hasContent = dayRegularEvents.length > 0 || dayQuickEvents.length > 0 || dayToday.length > 0 || visibleComp.length > 0 || dayRecur.length > 0 || daySched.length > 0;
+    const hasContent = dayRegularEvents.length > 0 || dayQuickEvents.length > 0 || visibleComp.length > 0 || dayRecur.length > 0 || daySched.length > 0;
     if (!hasContent) return null;
 
     return (
@@ -74,15 +73,6 @@ export default function Calendar({ ctx }) {
               <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", fontSize: 15, color: T.textMut }} onClick={(e) => { e.stopPropagation(); deleteEvent(ev.id); }}>✕</button>
             </div>
           ))}
-        </div>}
-
-        {dayToday.length > 0 && <div style={{ marginBottom: 14 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: T.warnText, marginBottom: 8 }}>◎ 오늘 할 일</p>
-          {dayToday.map((t, i) => { const pc = getColorForProjectId(t.projectId); return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: pc.light + "66", border: `1px solid ${pc.color}33`, borderLeft: `4px solid ${pc.color}`, marginBottom: 6, cursor: "pointer" }} onClick={() => completeForDate(dateKey, { projectId: t.projectId, taskId: t.taskId })}>
-              <CheckBox done={false} color={pc.color} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 15, fontWeight: 600 }}>{t.taskName}</p><p style={{ fontSize: 13, color: T.textMut }}>{t.projectName}</p></div>
-              <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", fontSize: 15, color: T.textMut }} onClick={(e) => { e.stopPropagation(); removeFromToday(t.taskId); }}>✕</button>
-            </div>); })}
         </div>}
 
         {daySched.length > 0 && <div style={{ marginBottom: 14 }}>
@@ -151,21 +141,17 @@ export default function Calendar({ ctx }) {
         {calDays().map((day, i) => {
           const comp = getCompForDay(day);
           const recur = getRecurringForDay(day);
-          const todayTasks = getTodayTasksForDay(day);
           const sched = getScheduledForDay(day);
           const events = getEventsForDay(day);
           const isSel = selectedDay === day && day !== null;
           const today = isTodayDate(day);
           const holiday = getHolidayForDay(day);
           const compIds = new Set(comp.map((c) => c.taskId));
-          const filteredToday = todayTasks.filter((t) => !compIds.has(t.taskId));
-          const todayIds = new Set(filteredToday.map((t) => t.taskId));
-          const filteredSched = sched.filter((s) => !todayIds.has(s.taskId) && !compIds.has(s.taskId));
-          const filteredEvents = events.filter((e) => !todayIds.has(e.id) && !compIds.has(e.id));
-          const filteredRecur = recur.filter((r) => !compIds.has(r.id) && !todayIds.has(r.id));
+          const filteredSched = sched.filter((s) => !compIds.has(s.taskId));
+          const filteredEvents = events.filter((e) => !compIds.has(e.id));
+          const filteredRecur = recur.filter((r) => !compIds.has(r.id));
           const allItems = [
             ...filteredEvents.map((e) => ({ type: e.quickTaskId ? "quick" : "event", name: e.name, pid: "event" })),
-            ...filteredToday.map((t) => ({ type: "today", name: t.taskName, pid: t.projectId })),
             ...filteredSched.map((s) => ({ type: "sched", name: s.taskName, pid: s.projectId })),
             ...comp.map((c) => ({ type: "done", name: c.taskName, pid: c.projectId })),
             ...filteredRecur.map((r) => ({ type: "recur", name: r.name, pid: "recurring" })),

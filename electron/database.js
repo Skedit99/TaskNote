@@ -9,7 +9,7 @@ const path = require('path');
 
 const DB_FILE = 'taskdata.db';
 const ARCHIVE_DB_FILE = 'archive.db';
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 5;
 
 let db = null;
 
@@ -167,7 +167,7 @@ function migrateSchema(database) {
 
   if (currentVersion < 1) {
     database.exec(SCHEMA_V1);
-    database.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)").run(String(CURRENT_SCHEMA_VERSION));
+    database.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)").run(String(1));
     console.log('[DB] 스키마 v1 초기화 완료');
   }
 
@@ -202,8 +202,148 @@ function migrateSchema(database) {
     console.log('[DB] 스키마 v2 마이그레이션 완료 (UNIQUE 인덱스 추가)');
   }
 
-  // 향후 v3 마이그레이션은 여기에 추가
-  // if (currentVersion < 3) { ... }
+  // v3: Tombstone 모델 (deleted_at) + recurring_overrides updated_at
+  if (currentVersion < 3) {
+    // PK 기반 테이블에 deleted_at 컬럼 추가 (soft delete 지원)
+    const addDeletedAt = (table) => {
+      try { database.exec(`ALTER TABLE ${table} ADD COLUMN deleted_at INTEGER`); } catch (_) {}
+    };
+    addDeletedAt('projects');
+    addDeletedAt('events');
+    addDeletedAt('recurring');
+    addDeletedAt('quick_tasks');
+
+    // 기존 deleted=1 데이터에 deleted_at 역보정
+    try {
+      database.exec(`UPDATE projects SET deleted_at = updated_at WHERE deleted = 1 AND deleted_at IS NULL`);
+      database.exec(`UPDATE events SET deleted_at = updated_at WHERE deleted = 1 AND deleted_at IS NULL`);
+    } catch (_) {}
+
+    // recurring_overrides에 updated_at 컬럼 추가 (LWW 병합용)
+    try { database.exec(`ALTER TABLE recurring_overrides ADD COLUMN updated_at INTEGER`); } catch (_) {}
+
+    database.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)").run(String(3));
+    console.log('[DB] 스키마 v3 마이그레이션 완료 (tombstone + override updated_at)');
+  }
+
+  // v4: GCal 매핑 + 오프라인 큐를 SQLite로 편입
+  if (currentVersion < 4) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS gcal_mappings (
+        local_id TEXT PRIMARY KEY,
+        gcal_event_id TEXT NOT NULL,
+        last_synced TEXT,
+        type TEXT DEFAULT 'event',
+        date_key TEXT,
+        summary TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_gcal_mappings_event ON gcal_mappings(gcal_event_id);
+
+      CREATE TABLE IF NOT EXISTS gcal_queue (
+        rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+        action TEXT NOT NULL,
+        local_id TEXT NOT NULL,
+        payload TEXT DEFAULT '{}',
+        timestamp TEXT
+      );
+    `);
+
+    database.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)").run(String(4));
+    console.log('[DB] 스키마 v4 마이그레이션 완료 (gcal_mappings + gcal_queue 테이블)');
+  }
+
+  // v5: today_tasks 테이블 제거 (오늘 할일은 events/scheduled/recurring에서 파생 계산)
+  if (currentVersion < 5) {
+    // today_tasks의 미완료 항목을 scheduled로 이동
+    try {
+      const todayRows = database.prepare("SELECT * FROM today_tasks WHERE completed = 0").all();
+      if (todayRows.length > 0) {
+        const todayKey = (() => {
+          const d = new Date();
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })();
+        const insertScheduled = database.prepare(
+          `INSERT OR IGNORE INTO scheduled (date_key, project_id, task_id, time, updated_at) VALUES (?, ?, ?, ?, ?)`
+        );
+        database.transaction(() => {
+          for (const row of todayRows) {
+            if (row.project_id === 'event' || row.project_id === 'recurring') continue;
+            const dateKey = row.added_date || todayKey;
+            insertScheduled.run(dateKey, row.project_id, row.task_id, row.time || '', row.updated_at || Date.now());
+          }
+        })();
+        console.log(`[DB] v5: today_tasks → scheduled ${todayRows.length}건 이동`);
+      }
+    } catch (e) {
+      console.warn('[DB] v5 today_tasks 마이그레이션 경고:', e.message);
+    }
+
+    // today_tasks 테이블 제거
+    try { database.exec('DROP TABLE IF EXISTS today_tasks'); } catch (_) {}
+
+    // gcal_mappings에 sync_hash 컬럼 추가 (Phase 2 변경 기반 Push용)
+    try { database.exec('ALTER TABLE gcal_mappings ADD COLUMN sync_hash TEXT'); } catch (_) {}
+
+    database.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)").run(String(5));
+    console.log('[DB] 스키마 v5 마이그레이션 완료 (today_tasks 제거, sync_hash 추가)');
+  }
+}
+
+/**
+ * 기존 gcal-mapping.json / gcal-queue.json을 SQLite로 1회 마이그레이션합니다.
+ * DB에 이미 데이터가 있으면 스킵합니다.
+ */
+function migrateGcalFilesToDb(userDataPath) {
+  const database = getDatabase();
+  if (!database) return;
+
+  const fs = require('fs');
+  const path = require('path');
+
+  // 매핑 파일 마이그레이션
+  const mappingPath = path.join(userDataPath, 'gcal-mapping.json');
+  try {
+    const existingCount = database.prepare('SELECT COUNT(*) as cnt FROM gcal_mappings').get().cnt;
+    if (existingCount === 0 && fs.existsSync(mappingPath)) {
+      const mapping = JSON.parse(fs.readFileSync(mappingPath, 'utf-8'));
+      const upsert = database.prepare(`
+        INSERT OR REPLACE INTO gcal_mappings (local_id, gcal_event_id, last_synced, type, date_key, summary)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      database.transaction(() => {
+        for (const [localId, entry] of Object.entries(mapping)) {
+          upsert.run(localId, entry.gcalEventId || '', entry.lastSynced || null,
+            entry.type || 'event', entry.date || null, entry.summary || null);
+        }
+      })();
+      // 원본 백업
+      try { fs.renameSync(mappingPath, mappingPath + '.backup'); } catch (_) {}
+      console.log(`[Migration] gcal-mapping.json → SQLite 완료 (${Object.keys(mapping).length}건)`);
+    }
+  } catch (e) {
+    console.warn('[Migration] gcal-mapping.json 마이그레이션 실패:', e.message);
+  }
+
+  // 큐 파일 마이그레이션
+  const queuePath = path.join(userDataPath, 'gcal-queue.json');
+  try {
+    const existingQueueCount = database.prepare('SELECT COUNT(*) as cnt FROM gcal_queue').get().cnt;
+    if (existingQueueCount === 0 && fs.existsSync(queuePath)) {
+      const queue = JSON.parse(fs.readFileSync(queuePath, 'utf-8'));
+      if (Array.isArray(queue) && queue.length > 0) {
+        const ins = database.prepare('INSERT INTO gcal_queue (action, local_id, payload, timestamp) VALUES (?, ?, ?, ?)');
+        database.transaction(() => {
+          for (const entry of queue) {
+            ins.run(entry.action || '', entry.localId || '', JSON.stringify(entry.payload || {}), entry.timestamp || null);
+          }
+        })();
+        console.log(`[Migration] gcal-queue.json → SQLite 완료 (${queue.length}건)`);
+      }
+      try { fs.renameSync(queuePath, queuePath + '.backup'); } catch (_) {}
+    }
+  } catch (e) {
+    console.warn('[Migration] gcal-queue.json 마이그레이션 실패:', e.message);
+  }
 }
 
 /**
@@ -258,4 +398,5 @@ module.exports = {
   getDatabase,
   closeDatabase,
   safeTransaction,
+  migrateGcalFilesToDb,
 };

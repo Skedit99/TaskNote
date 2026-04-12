@@ -42,7 +42,7 @@ export function useStorage() {
             if (val) {
               const migrated = { ...defaultData, ...JSON.parse(val) };
               setData(migrateToNormalizedData(migrated));
-              await window.electronAPI.saveAppData(JSON.stringify(migrated));
+              await window.electronAPI.saveAppData(migrated);
               localStorage.removeItem(STORAGE_KEY);
             }
           } catch (e) {}
@@ -111,9 +111,12 @@ export function useStorage() {
     if (isElectron) {
       const ts = Date.now();
       lastSavedTimestampRef.current = ts;
-      return window.electronAPI.saveAppData(JSON.stringify({ ...d, lastUpdated: ts })).then((result) => {
+      const payload = { ...d, lastUpdated: ts };
+      const t0 = performance.now();
+      return window.electronAPI.saveAppData(payload).then((result) => {
+        const t1 = performance.now();
+        if (t1 - t0 > 100) console.log(`[perf] save IPC: ${Math.round(t1 - t0)}ms`);
         if (result?.merged) {
-          // 병합 결과를 받으면 외부 업데이트 플래그 설정 (save-app-data가 이미 external-data-changed를 보냄)
           lastSavedTimestampRef.current = result.data?.lastUpdated || ts;
         }
       });
@@ -129,7 +132,7 @@ export function useStorage() {
     const s = latestSettingsRef.current;
     if (!s) return Promise.resolve();
     if (isElectron) {
-      return window.electronAPI.saveSettings(JSON.stringify(s));
+      return window.electronAPI.saveSettings(s);
     } else {
       try {
         localStorage.setItem(THEME_KEY, s.themeKey);
@@ -174,18 +177,7 @@ export function useStorage() {
         return Array.from(map.values());
       };
 
-      // 2. todayTasks 병합 (taskId 기준)
-      const mergeToday = (lArr, rArr) => {
-        const map = new Map();
-        (rArr || []).forEach(item => map.set(item.taskId, item));
-        (lArr || []).forEach(item => {
-          const existing = map.get(item.taskId);
-          if (!existing || (item.updatedAt || 0) > (existing.updatedAt || 0)) map.set(item.taskId, item);
-        });
-        return Array.from(map.values());
-      };
-
-      // 3. 날짜 키 기반 객체 병합 (scheduled, completedToday)
+      // 2. 날짜 키 기반 객체 병합 (scheduled, completedToday)
       const mergeDateKeyed = (lObj, rObj) => {
         const result = {};
         const allKeys = new Set([...Object.keys(lObj || {}), ...Object.keys(rObj || {})]);
@@ -208,7 +200,6 @@ export function useStorage() {
       merged.projects = mergeArrays(local.projects, remote.projects);
       merged.events = mergeArrays(local.events, remote.events);
       merged.recurring = mergeArrays(local.recurring, remote.recurring);
-      merged.todayTasks = mergeToday(local.todayTasks, remote.todayTasks);
       merged.scheduled = mergeDateKeyed(local.scheduled, remote.scheduled);
       merged.completedToday = mergeDateKeyed(local.completedToday, remote.completedToday);
       merged.lastUpdated = Math.max(local.lastUpdated || 0, remote.lastUpdated || 0);
@@ -217,16 +208,30 @@ export function useStorage() {
 
     window.electronAPI.onExternalDataChanged((newData) => {
       if (!newData) return;
-      externalUpdateRef.current = true;  // 저장 루프 방지
-      setData((prev) => {
-        // 외부(다른 PC) 변경은 전체 교체 — merge하면 삭제된 항목이 부활함
-        if ((newData.lastUpdated || 0) >= (prev.lastUpdated || 0)) {
-          lastSavedTimestampRef.current = newData.lastUpdated || 0;
-          return { ...defaultData, ...migrateToNormalizedData(newData) };
-        }
-        // 로컬이 더 최신이면 무시
-        return prev;
-      });
+      const normalized = { ...defaultData, ...migrateToNormalizedData(newData) };
+
+      if (dataDirtyRef.current) {
+        // 미저장 변경이 있는 동안 외부 변경 수신 → 병합하여 양쪽 보존
+        console.log('[Sync] 미저장 변경 중 외부 변경 수신 → 병합');
+        setData((prev) => {
+          const merged = mergeOnRenderer(prev, normalized);
+          merged.lastUpdated = Date.now();
+          lastSavedTimestampRef.current = merged.lastUpdated;
+          return merged;
+        });
+        // externalUpdateRef를 설정하지 않음 → 병합 결과가 저장되어야 함
+        dataDirtyRef.current = true; // 디바운스 타이머가 곧 flushData 발동
+      } else {
+        // 깨끗한 상태 → 기존대로 전체 교체
+        externalUpdateRef.current = true;  // 저장 루프 방지
+        setData((prev) => {
+          if ((newData.lastUpdated || 0) >= (prev.lastUpdated || 0)) {
+            lastSavedTimestampRef.current = newData.lastUpdated || 0;
+            return normalized;
+          }
+          return prev;
+        });
+      }
     });
 
     window.electronAPI.onDataConflict((diskData) => {
@@ -292,29 +297,28 @@ export function useStorage() {
       if (!d.events) d.events = [];
       if (!d.scheduled) d.scheduled = {};
 
-      // ── Ghost 이벤트 정리: GCal에서 잘못 import된 "(완료)" 이벤트 제거 ──
-      // 앱에서 push한 업무가 매핑 유실로 독립일정으로 재import된 경우
-      const allTaskNames = new Set();
-      for (const p of (d.projects || [])) {
-        const collect = (arr) => { for (const t of arr) { if (t.name) allTaskNames.add(t.name); if (t.children) collect(t.children); } };
-        collect(p.subtasks || []);
-      }
-      const ghostIds = [];
+      // ── 중복 import 이벤트 정리: 같은 gcalSourceId를 가진 이벤트가 여러 개면 하나만 유지 ──
+      const gcalSourceGroups = new Map();
       for (const ev of d.events) {
-        if (ev.deleted) continue;
-        if (!ev.gcalSourceId) continue; // import된 이벤트만 (gcalSourceId가 있음)
-        const cleanName = (ev.name || "").replace(/^\(완료\)\s*/, "");
-        if (allTaskNames.has(cleanName)) ghostIds.push(ev.id);
+        if (ev.deleted || !ev.gcalSourceId) continue;
+        if (!gcalSourceGroups.has(ev.gcalSourceId)) gcalSourceGroups.set(ev.gcalSourceId, []);
+        gcalSourceGroups.get(ev.gcalSourceId).push(ev);
       }
-      if (ghostIds.length > 0) {
-        const ghostSet = new Set(ghostIds);
-        d.events = d.events.filter((e) => !ghostSet.has(e.id));
-        d.todayTasks = d.todayTasks.filter((t) => !ghostSet.has(t.taskId));
-        console.log(`[Startup] Ghost 이벤트 ${ghostIds.length}건 정리됨`);
+      const duplicateIds = [];
+      for (const [, group] of gcalSourceGroups) {
+        if (group.length <= 1) continue;
+        // 가장 최근 것만 유지, 나머지 제거
+        group.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        for (let i = 1; i < group.length; i++) duplicateIds.push(group[i].id);
       }
-
-      // ── 날짜 변경 정리: 어제 이전의 완료된 작업만 제거 ──
-      d.todayTasks = d.todayTasks.filter((t) => !t.completed);
+      if (duplicateIds.length > 0) {
+        const dupSet = new Set(duplicateIds);
+        d.events = d.events.filter((e) => !dupSet.has(e.id));
+        for (const [dk, items] of Object.entries(d.completedToday || {})) {
+          d.completedToday[dk] = items.filter((c) => !dupSet.has(c.taskId));
+        }
+        console.log(`[Startup] 중복 import 이벤트 ${duplicateIds.length}건 정리됨`);
+      }
 
       // ── scheduled에서 이미 완료된(done) 태스크 정리 (잔류 방어) ──
       if (d.scheduled) {
@@ -340,29 +344,29 @@ export function useStorage() {
         }
       }
 
-      // ── 오늘의 이벤트를 todayTasks에 추가 ──
-      const todayEvents = d.events.filter((e) => e.date === key && !e.deleted);
-      for (const ev of todayEvents) {
-        if (!d.todayTasks.some((t) => t.taskId === ev.id)) {
-          d.todayTasks.push({ projectId: "event", taskId: ev.id, completed: false, addedDate: key, updatedAt: Date.now() });
+      // ── completedToday → 프로젝트 서브태스크 done 상태 동기화 ──
+      // completedToday에 완료 기록이 있지만 서브태스크의 done=false인 경우 복구
+      let reconciledCount = 0;
+      for (const [dk, items] of Object.entries(d.completedToday || {})) {
+        for (const c of items) {
+          if (!c.projectId || c.projectId === "recurring" || c.projectId === "event") continue;
+          const p = (d.projects || []).find((x) => x.id === c.projectId && !x.deleted);
+          if (!p) continue;
+          const st = findTaskById(p.subtasks || [], c.taskId);
+          if (st && !st.done) {
+            st.done = true;
+            st.updatedAt = Date.now();
+            p.updatedAt = Date.now();
+            reconciledCount++;
+          }
         }
+      }
+      if (reconciledCount > 0) {
+        console.log(`[Startup] completedToday ↔ subtask.done 불일치 ${reconciledCount}건 복구`);
       }
 
-      // ── 오늘의 예약 작업을 todayTasks에 추가 ──
-      const todayScheduled = d.scheduled[key] || [];
-      for (const s of todayScheduled) {
-        if (!d.todayTasks.some((t) => t.taskId === s.taskId)) {
-          d.todayTasks.push({ projectId: s.projectId, taskId: s.taskId, completed: false, addedDate: key, time: s.time || "", updatedAt: Date.now() });
-        }
-      }
-
-      // ── 오늘 완료된 업무를 completedToday에서 복원 ──
-      const todayCompleted = d.completedToday?.[key] || [];
-      for (const c of todayCompleted) {
-        if (!d.todayTasks.some((t) => t.taskId === c.taskId)) {
-          d.todayTasks.push({ projectId: c.projectId, taskId: c.taskId, completed: true, completedAt: c.completedAt || "", addedDate: key, updatedAt: Date.now() });
-        }
-      }
+      // todayTasks 필드가 남아있으면 제거 (마이그레이션)
+      delete d.todayTasks;
     });
   }, [loaded]);
 

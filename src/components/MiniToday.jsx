@@ -86,7 +86,7 @@ export default function MiniToday({ ctx }) {
   const {
     data, T, isDark, isHovered, bgOpacity, cardOpacity, showControls, isLocked,
     pendingToday, doneToday, expandedToday, setExpandedToday,
-    toggleTodayTask, removeFromToday, updateCompletedAt, getTaskTime, getColorForProjectId,
+    toggleTodayTask, updateCompletedAt, getTaskTime, getColorForProjectId,
     handleLock, handleMiniMode, handleBgOpacity, handleCardOpacity,
     handleMinimize, handleClose, setShowControls,
     onMouseEnter, onMouseLeave,
@@ -95,11 +95,8 @@ export default function MiniToday({ ctx }) {
   const hv = isHovered;
   const P = 10;
 
-  // 적응형 색상 (배경 투명도에 따라 텍스트 색상 조절)
-  const aText = adaptiveColor(T.text, bgOpacity, isDark);
+  // 적응형 색상 (배경 위 직접 표시되는 텍스트용)
   const aTextMut = adaptiveColor(T.textMut, bgOpacity, isDark);
-  const aTextSec = adaptiveColor(T.textSec, bgOpacity, isDark);
-  const aBorder = adaptiveColor(T.border, bgOpacity, isDark);
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayDone = doneToday;
   const todayTotal = pendingToday.length + todayDone.length;
@@ -175,18 +172,17 @@ export default function MiniToday({ ctx }) {
             const _pc = getColorForProjectId(t.projectId);
             return (
               <div key={t.taskId} style={{ marginBottom: 4, transition: "opacity .2s" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 10px", background: bgOpacity < 0.3 ? "transparent" : T.cardBg, borderRadius: hasDesc ? "10px 10px 0 0" : "10px", border: `1px solid ${aBorder}`, position: "relative", overflow: "hidden", transition: "background .3s, border-color .3s" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 10px", background: T.cardBg, borderRadius: hasDesc ? "10px 10px 0 0" : "10px", border: `1px solid ${T.border}`, position: "relative", overflow: "hidden", transition: "background .3s, border-color .3s" }}>
                   <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, borderRadius: "3px 0 0 3px", background: `linear-gradient(to bottom, transparent, ${_pc.color} 20%, ${_pc.color} 80%, transparent)` }} />
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer", minWidth: 0 }} onClick={() => { setExpandedToday((p) => { const n = { ...p }; delete n[t.taskId]; return n; }); toggleTodayTask(t.taskId); }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 7, border: `2.5px solid ${aBorder}`, flexShrink: 0, transition: "border-color .3s" }} />
+                    <div style={{ width: 22, height: 22, borderRadius: 7, border: `2.5px solid ${T.border}`, flexShrink: 0, transition: "border-color .3s" }} />
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <p style={{ fontSize: 15, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0, color: aText, transition: "color .3s" }}>{t.taskName}</p>
-                      <p style={{ fontSize: 12, color: aTextMut, margin: 0, transition: "color .3s" }}>{t.projectName}</p>
+                      <p style={{ fontSize: 15, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0, color: T.text, transition: "color .3s" }}>{t.taskName}</p>
+                      <p style={{ fontSize: 12, color: T.textMut, margin: 0, transition: "color .3s" }}>{t.projectName}</p>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                     {tTime && <span style={{ fontSize: 12, color: T.accent, fontWeight: 600, whiteSpace: "nowrap" }}>{tTime}</span>}
-                    <button style={{ width: 26, height: 26, border: "none", background: "transparent", cursor: "pointer", borderRadius: 6, fontSize: 14, color: T.textMut + "88", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => removeFromToday(t.taskId)}>✕</button>
                   </div>
                 </div>
                 {hasDesc && (
@@ -195,33 +191,27 @@ export default function MiniToday({ ctx }) {
               </div>
             );
           })}
-          {todayDone.length > 0 && (() => {
-            const aText = adaptiveColor(T.text, bgOpacity, isDark);
-            const aTextMut = adaptiveColor(T.textMut, bgOpacity, isDark);
-            const aBorder = adaptiveColor(T.border, bgOpacity, isDark);
-            const aCardBg = bgOpacity < 0.3 ? "transparent" : T.cardBg;
-            return (
-            <div style={{ borderTop: `1px solid ${aBorder}`, marginTop: 6, paddingTop: 6 }}>
+          {todayDone.length > 0 && (
+            <div style={{ borderTop: `1px solid ${T.border}`, marginTop: 6, paddingTop: 6 }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: aTextMut, marginBottom: 4, paddingLeft: 4 }}>완료 ({todayDone.length})</p>
               {todayDone.map((t) => (
                 <div key={t.taskId} style={{ marginBottom: 4, opacity: cardOpacity, transition: "opacity .2s, color .3s", cursor: "pointer" }} onClick={() => toggleTodayTask(t.taskId)}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 10px", background: aCardBg, borderRadius: "10px", border: `1px solid ${aBorder}`, transition: "background .3s, border-color .3s" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 10px", background: T.cardBg, borderRadius: "10px", border: `1px solid ${T.border}`, transition: "background .3s, border-color .3s" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
                       <div style={{ width: 22, height: 22, borderRadius: 7, background: "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <p style={{ fontSize: 15, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0, textDecoration: "line-through", color: aTextMut, transition: "color .3s" }}>{t.taskName}</p>
-                        <p style={{ fontSize: 12, color: aTextMut, margin: 0, transition: "color .3s" }}>{t.projectName}</p>
+                        <p style={{ fontSize: 15, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0, textDecoration: "line-through", color: T.textMut, transition: "color .3s" }}>{t.taskName}</p>
+                        <p style={{ fontSize: 12, color: T.textMut, margin: 0, transition: "color .3s" }}>{t.projectName}</p>
                       </div>
                     </div>
-                    <CompletedTime completedAt={t.completedAt} onUpdate={(newTime) => updateCompletedAt(t.taskId, newTime)} T={{ ...T, textSec: aTextMut }} />
+                    <CompletedTime completedAt={t.completedAt} onUpdate={(newTime) => updateCompletedAt(t.taskId, newTime)} T={T} />
                   </div>
                 </div>
               ))}
             </div>
-            );
-          })()}
+          )}
         </div>
 
         {/* 진행률 푸터 */}

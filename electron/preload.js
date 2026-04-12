@@ -62,4 +62,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gcalFetchEvents: (payload) => ipcRenderer.invoke('gcal-fetch-events', payload),
   gcalFetchHolidays: (payload) => ipcRenderer.invoke('gcal-fetch-holidays', payload),
   gcalSaveImportMapping: (payload) => ipcRenderer.invoke('gcal-save-import-mapping', payload),
+  gcalFullReset: () => ipcRenderer.invoke('gcal-full-reset'),
+  gcalDeduplicate: (payload) => ipcRenderer.invoke('gcal-deduplicate', payload),
+  gcalPullChanges: (payload) => ipcRenderer.invoke('gcal-pull-changes', payload),
 });

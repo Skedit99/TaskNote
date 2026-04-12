@@ -1,93 +1,93 @@
+/**
+ * Google Calendar 동기화 헬퍼 (Renderer)
+ *
+ * 모든 GCal 작업은 단일 디바운스 큐를 통과합니다.
+ * - create/update/del: 사용자 액션 → 큐 추가 → 디바운스 후 전송
+ * - syncExisting: 앱 시작/10분 주기 → 큐에 일괄 추가 → 같은 큐로 전송
+ * - 중복 방지: _optimize()가 같은 localId의 중복 작업을 병합/상쇄
+ */
 import { isElectron } from "../constants";
 import { todayKey } from "../utils/helpers";
 
-// ══════════════════════════════════════
-// Google Calendar 동기화 헬퍼
-// ── 디바운스 배치 큐 방식 ──
-// 개별 작업을 즉시 전송하지 않고 큐에 모은 뒤
-// 일정 시간(DEBOUNCE_MS) 후 최적화하여 일괄 전송
-// ══════════════════════════════════════
-
-const DEBOUNCE_MS = 1000;  // 마지막 변경 후 1초 대기
-const MAX_WAIT_MS = 5000;  // 첫 큐 추가 후 최대 5초 대기
+const DEBOUNCE_MS = 1000;
+const MAX_WAIT_MS = 5000;
 
 const gcal = {
-  // ── 초기 동기화 ──
-  _initialSyncDone: false,
-  _initialSyncPromise: null,
-  waitForInitialSync: async () => {
-    if (gcal._initialSyncPromise) await gcal._initialSyncPromise;
-  },
-
-  // ── 디바운스 배치 큐 ──
+  // ── 내부 상태 ──
   _queue: [],
   _flushTimer: null,
   _maxWaitTimer: null,
   _flushing: false,
+  _flushPromise: null,
+  _syncRunning: false,
+  _initialSyncDone: false,
+  _initialSyncPromise: null,
 
-  // 큐에 작업 추가 + 디바운스/최대대기 타이머 관리
+  // ── 큐 추가 ──
   _enqueue(action, localId, payload) {
     if (!isElectron) return;
     gcal._queue.push({ action, localId, payload, ts: Date.now() });
 
-    // 디바운스: 마지막 enqueue 후 1초 뒤에 flush
     clearTimeout(gcal._flushTimer);
-    gcal._flushTimer = setTimeout(() => gcal._flush(), DEBOUNCE_MS);
+    gcal._flushTimer = setTimeout(() => { gcal._flushPromise = gcal._flush(); }, DEBOUNCE_MS);
 
-    // 최대 대기: 첫 enqueue 후 5초면 강제 flush (무한 지연 방지)
     if (!gcal._maxWaitTimer) {
-      gcal._maxWaitTimer = setTimeout(() => gcal._flush(), MAX_WAIT_MS);
+      gcal._maxWaitTimer = setTimeout(() => { gcal._flushPromise = gcal._flush(); }, MAX_WAIT_MS);
     }
   },
 
-  // 큐 최적화: 같은 localId에 대한 중복 제거 + 상쇄
+  // ── 큐 최적화: 같은 localId에 대한 중복 제거 + 상쇄 ──
   _optimize(queue) {
     const byId = new Map();
     for (const op of queue) {
       const existing = byId.get(op.localId);
-
       if (!existing) {
         byId.set(op.localId, op);
         continue;
       }
-
-      // create → delete = 서로 상쇄 (생성 취소)
+      // create → delete = 양쪽 삭제 (상쇄)
       if (existing.action === "create" && op.action === "delete") {
         byId.delete(op.localId);
         continue;
       }
-
-      // create → update = create에 업데이트 필드 병합
+      // create → update = create에 필드 병합
       if (existing.action === "create" && op.action === "update") {
         existing.payload = { ...existing.payload, ...op.payload };
+        existing.ts = op.ts;
         continue;
       }
-
       // update → update = 나중 것으로 병합
       if (existing.action === "update" && op.action === "update") {
         existing.payload = { ...existing.payload, ...op.payload };
         existing.ts = op.ts;
         continue;
       }
-
       // update → delete = delete만 남김
       if (existing.action === "update" && op.action === "delete") {
         byId.set(op.localId, op);
         continue;
       }
-
-      // 기타: 나중 것이 우선
+      // create → create = 나중 것으로 교체 (같은 localId 중복 생성 방지)
+      if (existing.action === "create" && op.action === "create") {
+        existing.payload = op.payload;
+        existing.ts = op.ts;
+        continue;
+      }
+      // 기타: 나중 것으로 교체
       byId.set(op.localId, op);
     }
     return Array.from(byId.values());
   },
 
-  // 큐 비우기 + 일괄 전송
+  // ── 큐 비우기 + 일괄 전송 ──
   async _flush() {
-    if (gcal._queue.length === 0 || gcal._flushing) return;
+    if (gcal._queue.length === 0) {
+      if (gcal._flushing) return gcal._flushPromise;
+      return;
+    }
+    if (gcal._flushing) return gcal._flushPromise;
     gcal._flushing = true;
 
-    // 타이머 정리
     clearTimeout(gcal._flushTimer);
     clearTimeout(gcal._maxWaitTimer);
     gcal._flushTimer = null;
@@ -96,9 +96,8 @@ const gcal = {
     const ops = gcal._optimize(gcal._queue);
     gcal._queue = [];
 
-    console.log(`[GCal 큐] 플러시: ${ops.length}건`);
+    if (ops.length > 0) console.log(`[GCal 큐] 플러시: ${ops.length}건`);
 
-    // 3건씩, 500ms 간격으로 전송 (Rate Limit 방지)
     for (let i = 0; i < ops.length; i += 3) {
       const chunk = ops.slice(i, i + 3);
       await Promise.all(chunk.map(op => {
@@ -120,10 +119,10 @@ const gcal = {
     }
 
     gcal._flushing = false;
+    gcal._flushPromise = null;
 
-    // flush 중에 새 항목이 쌓였으면 다시 flush
     if (gcal._queue.length > 0) {
-      gcal._flushTimer = setTimeout(() => gcal._flush(), DEBOUNCE_MS);
+      gcal._flushTimer = setTimeout(() => { gcal._flushPromise = gcal._flush(); }, DEBOUNCE_MS);
     }
   },
 
@@ -145,10 +144,17 @@ const gcal = {
     for (const id of localIds) gcal._enqueue("delete", id, {});
   },
 
-  // 앱 종료 전 강제 flush (대기 없이 즉시)
-  forceFlush() {
+  // 강제 flush — 진행 중인 flush 완료까지 대기
+  async forceFlush() {
     clearTimeout(gcal._flushTimer);
-    return gcal._flush();
+    clearTimeout(gcal._maxWaitTimer);
+    if (gcal._flushing && gcal._flushPromise) {
+      await gcal._flushPromise;
+    }
+    if (gcal._queue.length > 0) {
+      gcal._flushPromise = gcal._flush();
+      await gcal._flushPromise;
+    }
   },
 
   // 오프라인 큐 처리 (main process 큐)
@@ -157,13 +163,42 @@ const gcal = {
     window.electronAPI.gcalSyncFlushQueue().catch((e) => console.warn("[gcal] flush:", e));
   },
 
-  // ══════════════════════════════════════
-  // 기존 데이터 일괄 동기화 (앱 시작 시 1회)
-  // ══════════════════════════════════════
-  syncExisting(appData) {
-    if (!isElectron) return;
+  // 초기 동기화 완료까지 대기 (fetchGcalEvents가 호출 전 사용)
+  waitForInitialSync() {
+    if (gcal._initialSyncDone) return Promise.resolve();
+    if (gcal._initialSyncPromise) return gcal._initialSyncPromise;
+    return Promise.resolve();
+  },
 
-    // ── 태스크 정보 조회 헬퍼 ──
+  // ── GCal 전체 리셋 후 재동기화 ──
+  async fullReset(appData) {
+    if (!isElectron) return;
+    console.log("[GCal] 전체 리셋 시작...");
+    try {
+      const result = await window.electronAPI.gcalFullReset();
+      console.log("[GCal] 전체 리셋 결과:", result);
+      if (result?.success) {
+        gcal._syncRunning = false;
+        gcal._initialSyncDone = false;
+        gcal.syncExisting(appData);
+      }
+    } catch (e) {
+      console.error("[GCal] 전체 리셋 실패:", e);
+    }
+  },
+
+  // ══════════════════════════════════════
+  // 기존 데이터 일괄 동기화 — 모든 작업을 단일 큐에 추가
+  // (직접 IPC 호출 없음, 디바운스 큐의 _optimize가 중복 처리)
+  // ══════════════════════════════════════
+  async syncExisting(appData) {
+    if (!isElectron) return;
+    if (gcal._syncRunning) return;
+    gcal._syncRunning = true;
+
+    // 기존 큐를 먼저 플러시
+    try { await gcal.forceFlush(); } catch (_) {}
+
     const getTaskInfo = (pid, tid) => {
       if (pid === "event") {
         const ev = (appData.events || []).find((e) => e.id === tid);
@@ -192,28 +227,25 @@ const gcal = {
     today.setHours(0, 0, 0, 0);
     const maxDate = new Date(today);
     maxDate.setMonth(maxDate.getMonth() + 1);
+    const pastDate = new Date(today);
+    pastDate.setDate(pastDate.getDate() - 7);
     const pad = (n) => String(n).padStart(2, "0");
-
-    const batch = [];
 
     // 완료된 항목 ID 수집
     const completedTaskIds = new Set();
     for (const items of Object.values(appData.completedToday || {})) {
       for (const c of items) completedTaskIds.add(c.taskId);
     }
-    for (const t of (appData.todayTasks || [])) {
-      if (t.completed) completedTaskIds.add(t.taskId);
-    }
 
-    // 독립 일정 (완료 시 "(완료)" 접두사)
+    // 독립 일정 (GCal import된 이벤트는 제외)
     for (const ev of (appData.events || [])) {
-      if (ev.deleted) continue;
+      if (ev.deleted || ev.gcalSourceId) continue;
       const isCompleted = completedTaskIds.has(ev.id);
       const summary = isCompleted ? `(완료) ${ev.name}` : ev.name;
-      batch.push({ localId: ev.id, summary, description: ev.description || "", date: ev.date, time: ev.time || "", type: "event" });
+      gcal._enqueue("create", ev.id, { localId: ev.id, summary, description: ev.description || "", date: ev.date, time: ev.time || "", endTime: ev.endTime || "", type: "event" });
     }
 
-    // 예약된 업무 (완료 시 "(완료)" 접두사)
+    // 예약된 업무
     const scheduledTaskIds = new Set();
     for (const [dateKey, items] of Object.entries(appData.scheduled || {})) {
       for (const s of items) {
@@ -221,66 +253,49 @@ const gcal = {
         const isCompleted = completedTaskIds.has(s.taskId);
         const info = getTaskInfo(s.projectId, s.taskId);
         const summary = isCompleted ? `(완료) ${info.name}` : info.name;
-        batch.push({ localId: s.taskId, summary, description: info.desc, date: dateKey, time: s.time || "", type: "scheduled" });
+        gcal._enqueue("create", s.taskId, { localId: s.taskId, summary, description: info.desc, date: dateKey, time: s.time || "", endTime: s.endTime || "", type: "scheduled" });
       }
     }
 
-    // completedToday에만 있고 scheduled에 없는 완료 항목 (프로젝트 업무만)
-    // recurring은 정기업무 전개 루프에서, event는 독립일정 루프에서 각각 처리됨
+    // completedToday에만 있고 scheduled에 없는 완료 항목
     for (const [dateKey, items] of Object.entries(appData.completedToday || {})) {
       for (const c of items) {
         if (scheduledTaskIds.has(c.taskId)) continue;
         if (c.projectId === "recurring" || c.projectId === "event") continue;
         const info = getTaskInfo(c.projectId, c.taskId);
-        batch.push({ localId: c.taskId, summary: `(완료) ${info.name}`, description: info.desc, date: dateKey, time: c.time || "", type: "scheduled" });
+        gcal._enqueue("create", c.taskId, { localId: c.taskId, summary: `(완료) ${info.name}`, description: info.desc, date: dateKey, time: c.time || "", type: "scheduled" });
       }
     }
 
-    // 오늘 할 일 (scheduled에 없는 것만)
-    const todayStr = todayKey();
-    for (const t of (appData.todayTasks || [])) {
-      if (scheduledTaskIds.has(t.taskId)) continue;
-      if (completedTaskIds.has(t.taskId) && t.projectId !== "recurring" && t.projectId !== "event") continue;
-      if (t.projectId === "recurring" || t.projectId === "event") continue;
-      const info = getTaskInfo(t.projectId, t.taskId);
-      const summary = t.completed ? `(완료) ${info.name}` : info.name;
-      batch.push({ localId: t.taskId, summary, description: info.desc, date: todayStr, time: t.time || "", type: "scheduled" });
-    }
-
-    // 날짜별 정기업무 완료 여부 조회용 맵 (dateKey → Set of taskId)
+    // 정기 업무 전개
     const completedByDate = new Map();
     for (const [dk, items] of Object.entries(appData.completedToday || {})) {
       const ids = new Set(items.filter((c) => c.projectId === "recurring").map((c) => c.taskId));
       if (ids.size > 0) completedByDate.set(dk, ids);
     }
 
-    // 정기 업무 전개 (완료 시 "(완료)" 접두사, skip/add 반영)
     const skips = appData.recurringSkips || {};
     const adds = appData.recurringAdds || {};
 
     for (const r of (appData.recurring || [])) {
       if (!r.active) continue;
       const limit = r.endDate ? new Date(r.endDate + "T23:59:59") : maxDate;
-      const startFrom = r.startDate ? new Date(r.startDate) : today;
-      const cursor = new Date(Math.max(today.getTime(), startFrom.getTime()));
-
-      // 이 정기업무가 정규 스케줄로 나타나는 날짜 수집
+      const startFrom = r.startDate ? new Date(r.startDate) : pastDate;
+      const cursor = new Date(Math.max(pastDate.getTime(), startFrom.getTime()));
       const regularDates = new Set();
 
       if (r.type === "weekly") {
         while (cursor.getDay() !== r.dayValue && cursor <= limit) cursor.setDate(cursor.getDate() + 1);
         const interval = r.interval || 1;
         if (interval > 1 && r.startDate) {
-          const refDate = new Date(r.startDate);
-          refDate.setHours(0, 0, 0, 0);
+          const refDate = new Date(r.startDate); refDate.setHours(0, 0, 0, 0);
           while (refDate.getDay() !== r.dayValue) refDate.setDate(refDate.getDate() + 1);
           const diffWeeks = Math.floor(Math.floor((cursor - refDate) / 86400000) / 7);
           const remainder = diffWeeks % interval;
           if (remainder !== 0) cursor.setDate(cursor.getDate() + (interval - remainder) * 7);
         }
         while (cursor <= limit) {
-          const dateKey = `${cursor.getFullYear()}-${pad(cursor.getMonth() + 1)}-${pad(cursor.getDate())}`;
-          regularDates.add(dateKey);
+          regularDates.add(`${cursor.getFullYear()}-${pad(cursor.getMonth() + 1)}-${pad(cursor.getDate())}`);
           cursor.setDate(cursor.getDate() + (interval * 7));
         }
       } else if (r.type === "monthly") {
@@ -289,10 +304,10 @@ const gcal = {
           let targetDay;
           if (r.monthlyMode === "nthWeekday") {
             const firstDay = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-            let firstOccurrence = firstDay.getDay() <= r.nthDayOfWeek
+            let firstOcc = firstDay.getDay() <= r.nthDayOfWeek
               ? 1 + (r.nthDayOfWeek - firstDay.getDay())
               : 1 + (7 - firstDay.getDay() + r.nthDayOfWeek);
-            const candidate = firstOccurrence + (r.nthWeek - 1) * 7;
+            const candidate = firstOcc + (r.nthWeek - 1) * 7;
             const lastDay = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
             targetDay = candidate <= lastDay ? candidate : null;
           } else {
@@ -301,69 +316,71 @@ const gcal = {
           }
           if (targetDay) {
             const d = new Date(cursor.getFullYear(), cursor.getMonth(), targetDay);
-            if (d >= today && d <= limit) {
-              const dateKey = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-              regularDates.add(dateKey);
+            if (d >= pastDate && d <= limit) {
+              regularDates.add(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
             }
           }
           cursor.setMonth(cursor.getMonth() + 1);
         }
       }
 
-      // skip된 날짜 제거
       for (const dateKey of regularDates) {
         if ((skips[dateKey] || []).includes(r.id)) regularDates.delete(dateKey);
       }
-
-      // 수동 추가(adds)된 날짜 포함
       for (const [dateKey, addIds] of Object.entries(adds)) {
         if (addIds.includes(r.id) && !regularDates.has(dateKey)) {
-          // 범위 내인지 체크
           const d = new Date(dateKey);
-          if (d >= today && d <= maxDate) regularDates.add(dateKey);
+          if (d >= pastDate && d <= maxDate) regularDates.add(dateKey);
         }
       }
 
-      // batch에 추가
       for (const dateKey of regularDates) {
         const isDone = completedByDate.get(dateKey)?.has(r.id);
         const summary = isDone ? `(완료) ${r.name}` : r.name;
-        batch.push({ localId: `recurring:${r.id}:${dateKey}`, summary, description: "", date: dateKey, time: r.time || "", type: "recurring" });
+        const compositeId = `recurring:${r.id}:${dateKey}`;
+        gcal._enqueue("create", compositeId, { localId: compositeId, summary, description: "", date: dateKey, time: r.time || "", endTime: r.endTime || "", type: "recurring" });
       }
     }
 
-    // ── 배치 실행 (큐를 우회하여 직접 전송) ──
-    const processBatch = async () => {
-      console.log(`[GCal] 일괄 동기화 시작: ${batch.length}건`);
-      let successCount = 0;
-      let skipCount = 0;
-      let failCount = 0;
-      for (let i = 0; i < batch.length; i += 3) {
-        const chunk = batch.slice(i, i + 3);
-        await Promise.all(chunk.map(item =>
-          window.electronAPI.gcalSyncCreate(item)
-            .then((result) => {
-              if (result?.gcalEventId) successCount++;
-              else { skipCount++; }
-            })
-            .catch(() => { failCount++; })
-        ));
-        if (i + 3 < batch.length) await new Promise(r => setTimeout(r, 500));
-      }
-      console.log(`[GCal] 일괄 동기화 완료: 성공 ${successCount}건, 건너뜀 ${skipCount}건, 실패 ${failCount}건`);
+    console.log(`[GCal] 일괄 동기화: ${gcal._queue.length}건 큐에 추가`);
 
-      // 잔여 GCal 이벤트 정리: 유효한 localId에 없는 매핑 삭제
-      const validLocalIds = batch.map((b) => b.localId);
-      try {
-        const result = await window.electronAPI.gcalCleanupStale({ validLocalIds });
-        if (result?.deleted > 0) console.log(`[GCal] 잔여 이벤트 ${result.deleted}건 정리됨`);
-      } catch (e) {
-        console.warn("[GCal] 잔여 정리 실패:", e);
+    // 큐 flush 실행 (디바운스 없이 즉시)
+    try {
+      gcal._flushPromise = gcal._flush();
+      await gcal._flushPromise;
+    } catch (e) {
+      console.warn("[GCal] 일괄 동기화 flush 실패:", e);
+    }
+
+    // 잔여 매핑 정리
+    try {
+      const validLocalIds = [];
+      // 독립 이벤트
+      for (const ev of (appData.events || [])) { if (!ev.deleted && !ev.gcalSourceId) validLocalIds.push(ev.id); }
+      // 예약된 업무
+      for (const items of Object.values(appData.scheduled || {})) { for (const s of items) validLocalIds.push(s.taskId); }
+      // 완료된 업무
+      for (const items of Object.values(appData.completedToday || {})) {
+        for (const c of items) { if (c.projectId !== "recurring" && c.projectId !== "event") validLocalIds.push(c.taskId); }
+      }
+      // 정기 업무
+      for (const r of (appData.recurring || [])) { if (r.active) validLocalIds.push(r.id); }
+      // 프로젝트 서브태스크 (scheduled/completedToday에 없어도 매핑 보존)
+      // → 레벨 변경 등으로 scheduled에서 제거되어도 매핑이 유지됨
+      for (const p of (appData.projects || [])) {
+        if (p.deleted) continue;
+        const collectIds = (tasks) => { for (const t of tasks) { validLocalIds.push(t.id); if (t.children) collectIds(t.children); } };
+        collectIds(p.subtasks || []);
       }
 
-      gcal._initialSyncDone = true;
-    };
-    gcal._initialSyncPromise = processBatch();
+      const result = await window.electronAPI.gcalCleanupStale({ validLocalIds });
+      if (result?.deleted > 0) console.log(`[GCal] 잔여 이벤트 ${result.deleted}건 정리됨`);
+    } catch (e) {
+      console.warn("[GCal] 잔여 정리 실패:", e);
+    }
+
+    gcal._initialSyncDone = true;
+    gcal._syncRunning = false;
   },
 };
 

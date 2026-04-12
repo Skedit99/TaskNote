@@ -13,11 +13,11 @@ export default function Sidebar({ ctx }) {
     editingTask, setEditingTask, depthColors,
     activeProjects, archivedProjects,
     pendingToday, doneToday,
-    toggleTodayTask, removeFromToday,
-    addToToday, addToScheduled,
+    toggleTodayTask,
+    addToScheduled,
     getColorForProjectId, getScheduledDateForTask, getTaskTime,
     editSubtask, deleteSubtask, reorderSubtasks, moveTaskUnder, moveTaskBeside,
-    addRecurringToToday, addRecurringToDate, toggleRecurring, deleteRecurring,
+    addRecurringToDate, toggleRecurring, deleteRecurring,
     archiveProject, restoreProject, deleteProject, reorderProjects,
     hasNonTodaySelection, selectedDateKey, selectedDateLabel,
     addQuickTask, editQuickTask, deleteQuickTask, scheduleQuickTask,
@@ -78,7 +78,6 @@ export default function Sidebar({ ctx }) {
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                         {tTime && <span style={{ fontSize: 13, color: T.accent, fontWeight: 600, whiteSpace: "nowrap" }}>{tTime}</span>}
-                        <button style={{ width: 30, height: 30, border: "none", background: "transparent", cursor: "pointer", borderRadius: 7, fontSize: 15, color: T.textMut + "88" }} onClick={() => removeFromToday(t.taskId)}>✕</button>
                       </div>
                     </div>
                     {hasDesc && (
@@ -211,7 +210,7 @@ export default function Sidebar({ ctx }) {
                             depthColors={depthColors}
                             hasNonTodaySelection={hasNonTodaySelection}
                             selectedDateKey={selectedDateKey} selectedDateLabel={selectedDateLabel}
-                            addToToday={addToToday} addToScheduled={addToScheduled}
+                            addToScheduled={addToScheduled}
                             getScheduledDateForTask={getScheduledDateForTask} getTaskTime={getTaskTime}
                             editSubtask={editSubtask} deleteSubtask={deleteSubtask}
                             reorderSubtasks={reorderSubtasks} moveTaskUnder={moveTaskUnder} moveTaskBeside={moveTaskBeside} setModal={setModal}

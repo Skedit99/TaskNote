@@ -6,14 +6,15 @@ export default function TaskItem({
   expanded, setExpanded, expandedDesc, setExpandedDesc,
   editingTask, setEditingTask, depthColors,
   hasNonTodaySelection, selectedDateKey, selectedDateLabel,
-  addToToday, addToScheduled, getScheduledDateForTask, getTaskTime,
+  addToScheduled, getScheduledDateForTask, getTaskTime,
   editSubtask, deleteSubtask, reorderSubtasks, moveTaskUnder, moveTaskBeside, setModal,
   getColorForProjectId,
 }) {
   // "none" | "nest" | "above" | "below"
   const [dropZone, setDropZone] = React.useState("none");
   const dragCounterRef = React.useRef(0);
-  const isInToday = data.todayTasks.some((tt) => tt.taskId === task.id);
+  const isInToday = (data.scheduled?.[todayKey()]?.some((s) => s.taskId === task.id)) ||
+    (data.events || []).some((e) => e.id === task.id && e.date === todayKey() && !e.deleted);
   const hasChildren = task.children?.length > 0;
   const isExp = expanded[task.id];
   const descExp = expandedDesc[task.id];
@@ -81,7 +82,10 @@ export default function TaskItem({
                 })();
                 const na = [...siblings];
                 const [m] = na.splice(fi, 1);
-                na.splice(ti, 0, m);
+                // zone에 따라 삽입 위치 결정 + 제거로 인한 인덱스 보정
+                let insertIdx = zone === "below" ? ti + 1 : ti;
+                if (fi < insertIdx) insertIdx--;
+                na.splice(insertIdx, 0, m);
                 reorderSubtasks(projectId, pid2, na);
               } else {
                 // 다른 레벨 → 타겟의 형제 위치로 이동
@@ -144,7 +148,7 @@ export default function TaskItem({
               );
             }
             if (hasNonTodaySelection) return <button style={{ padding: "4px 10px", border: `1.5px solid ${T.accent}`, background: T.cardBg, color: T.accent, borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600 }} onClick={() => addToScheduled(projectId, task.id, selectedDateKey)}>+{selectedDateLabel}</button>;
-            return <button style={{ padding: "4px 10px", border: `1.5px solid ${T.primary}`, background: T.cardBg, color: T.primary, borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600 }} onClick={() => addToToday(projectId, task.id)}>+오늘</button>;
+            return <button style={{ padding: "4px 10px", border: `1.5px solid ${T.primary}`, background: T.cardBg, color: T.primary, borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600 }} onClick={() => addToScheduled(projectId, task.id, todayKey())}>+오늘</button>;
           })()}
           {isInToday && !task.done && (() => {
             const tTime = getTaskTime(task.id);
@@ -182,7 +186,7 @@ export default function TaskItem({
               depthColors={depthColors}
               hasNonTodaySelection={hasNonTodaySelection}
               selectedDateKey={selectedDateKey} selectedDateLabel={selectedDateLabel}
-              addToToday={addToToday} addToScheduled={addToScheduled}
+              addToScheduled={addToScheduled}
               getScheduledDateForTask={getScheduledDateForTask} getTaskTime={getTaskTime}
               editSubtask={editSubtask} deleteSubtask={deleteSubtask}
               reorderSubtasks={reorderSubtasks} moveTaskUnder={moveTaskUnder} moveTaskBeside={moveTaskBeside} setModal={setModal}
