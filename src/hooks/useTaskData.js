@@ -348,22 +348,56 @@ export default function useTaskData() {
       const existingGcalIds = new Set((currentData.events || []).map((e) => e.gcalSourceId).filter(Boolean));
       const tombstonedIds = new Set((currentData.events || []).filter((e) => e.deleted && e.gcalSourceId).map((e) => e.gcalSourceId));
 
-      // 같은 날짜+같은 이름의 로컬 독립일정 중복 방지 (매핑 유실 시 안전장치)
-      const localEventKeys = new Set();
+      // 로컬에 존재하는 모든 업무 이름 수집 (프로젝트 서브태스크 + 독립이벤트 + 정기업무)
+      // → 이름이 매칭되는 GCal 이벤트는 import하지 않고 매핑만 복원
+      const localTaskMap = new Map(); // "cleanName" → { localId, type }
+      // 프로젝트 서브태스크
+      for (const p of (currentData.projects || [])) {
+        if (p.deleted) continue;
+        const collect = (arr) => { for (const t of arr) { localTaskMap.set(t.name, { localId: t.id, type: "subtask" }); if (t.children) collect(t.children); } };
+        collect(p.subtasks || []);
+      }
+      // 독립 이벤트
       for (const ev of (currentData.events || [])) {
         if (ev.deleted) continue;
-        localEventKeys.add(`${ev.date}:${ev.name}`);
+        localTaskMap.set(`${ev.date}:${ev.name}`, { localId: ev.id, type: "event" });
+      }
+      // 정기 업무
+      for (const r of (currentData.recurring || [])) {
+        localTaskMap.set(r.name, { localId: r.id, type: "recurring" });
       }
 
       const toImport = [];
+      const toRestoreMapping = []; // 이미 로컬에 있는 업무의 매핑 복원
+
       for (const ev of newEvents) {
-        // gcalSourceId 기반 중복 체크 (가장 확실한 기준)
         if (existingGcalIds.has(ev.gcalEventId)) continue;
         if (tombstonedIds.has(ev.gcalEventId)) continue;
-        // 같은 날짜+같은 이름의 이벤트가 이미 있으면 스킵 (매핑 유실 방어)
+
         const cleanName = (ev.summary || "").replace(/^\(완료\)\s*/, "");
-        if (localEventKeys.has(`${ev.date}:${cleanName}`)) continue;
+
+        // 로컬에 같은 이름의 업무가 이미 있으면 → import 대신 매핑만 복원
+        const matchByName = localTaskMap.get(cleanName);
+        const matchByDateName = localTaskMap.get(`${ev.date}:${cleanName}`);
+        const match = matchByName || matchByDateName;
+        if (match) {
+          toRestoreMapping.push({ localId: match.localId, gcalEventId: ev.gcalEventId, date: ev.date });
+          continue;
+        }
+
         toImport.push(ev);
+      }
+
+      // 매핑 복원 (로컬에 이미 있는 업무 ↔ GCal 이벤트 연결)
+      for (const pair of toRestoreMapping) {
+        try {
+          await window.electronAPI.gcalSaveImportMapping(pair);
+        } catch (e) {
+          console.warn('[gcal] 매핑 복원 실패:', e);
+        }
+      }
+      if (toRestoreMapping.length > 0) {
+        console.log(`[gcal] 기존 업무 매핑 복원: ${toRestoreMapping.length}건`);
       }
 
       if (toImport.length === 0) {
@@ -371,13 +405,12 @@ export default function useTaskData() {
         return;
       }
 
-      // import 실행: 로컬 이벤트 생성 + 완료 상태 반영 + 매핑 저장
+      // 진짜 새 이벤트만 import (로컬에 없는 것들)
       const importedPairs = [];
       updateData((d) => {
         if (!d.events) d.events = [];
         for (const ev of toImport) {
           if (d.events.some((e) => e.gcalSourceId === ev.gcalEventId)) continue;
-          // 같은 날짜+같은 이름의 이벤트가 이미 있으면 스킵 (updateData 내부 최종 방어)
           const cleanName = (ev.summary || "").replace(/^\(완료\)\s*/, "");
           if (d.events.some((e) => !e.deleted && e.date === ev.date && e.name === cleanName)) continue;
           const localId = generateId();
@@ -390,7 +423,6 @@ export default function useTaskData() {
             gcalSourceId: ev.gcalEventId,
             updatedAt: Date.now(),
           });
-          // 완료 상태가 있으면 completedToday에 추가
           if (ev.isCompleted) {
             if (!d.completedToday[ev.date]) d.completedToday[ev.date] = [];
             if (!d.completedToday[ev.date].some((c) => c.taskId === localId)) {

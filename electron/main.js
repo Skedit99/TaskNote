@@ -1069,8 +1069,11 @@ app.whenReady().then(() => {
         })();
 
         if (justMigrated && syncLastUpdated > 0) {
-          console.log(`[Startup] 스키마 마이그레이션 직후 → sync.json 강제 로드 (sync: ${syncLastUpdated})`);
+          console.log(`[Startup] 스키마 마이그레이션 직후 → sync.json 강제 로드 + 매핑 초기화`);
           sqliteStorage.saveAllData(syncData);
+          // GCal 매핑 초기화 → 다음 fetchGcalEvents에서 전체 재연동 모드 활성화
+          try { getDatabase()?.exec('DELETE FROM gcal_mappings'); } catch (_) {}
+          try { getDatabase()?.exec('DELETE FROM gcal_queue'); } catch (_) {}
         } else if (syncLastUpdated > dbLastUpdated) {
           console.log(`[Startup] sync.json이 DB보다 최신 (sync: ${syncLastUpdated}, db: ${dbLastUpdated}) → DB에 반영`);
           sqliteStorage.saveAllData(syncData);
