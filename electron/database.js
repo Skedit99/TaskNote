@@ -145,8 +145,14 @@ function openDatabase(dbPath) {
   db.pragma('synchronous = NORMAL');
   db.pragma('foreign_keys = ON');
 
-  // 스키마 마이그레이션
-  migrateSchema(db);
+  // 스키마 마이그레이션 (마이그레이션 발생 여부 반환)
+  const migrated = migrateSchema(db);
+  if (migrated) {
+    // 스키마가 변경되면 lastUpdated를 리셋 → sync.json이 항상 우선하도록
+    try {
+      db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_just_migrated', '1')").run();
+    } catch (_) {}
+  }
 
   return db;
 }
@@ -164,6 +170,7 @@ function migrateSchema(database) {
   })();
 
   const currentVersion = versionRow ? parseInt(versionRow.value, 10) : 0;
+  const didMigrate = currentVersion < CURRENT_SCHEMA_VERSION;
 
   if (currentVersion < 1) {
     database.exec(SCHEMA_V1);
@@ -287,6 +294,8 @@ function migrateSchema(database) {
     database.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)").run(String(5));
     console.log('[DB] 스키마 v5 마이그레이션 완료 (today_tasks 제거, sync_hash 추가)');
   }
+
+  return didMigrate;
 }
 
 /**

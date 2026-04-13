@@ -1044,8 +1044,7 @@ app.whenReady().then(() => {
   // ── lastSyncWriteTimestamp 복원 (영속화) ──
   lastSyncWriteTimestamp = parseInt(sqliteStorage.getMeta('last_sync_seen_ts') || '0', 10);
 
-  // ── 클라우드 동기화: sync.json이 DB보다 최신이면 DB에 반영 ──
-  // (서브PC 업데이트 후 구 로컬 JSON만 마이그레이션되어 최신 데이터를 놓치는 문제 방지)
+  // ── 클라우드 동기화: sync.json과 DB 비교 → 최신 데이터 반영 ──
   const customPath = getCustomDataPath();
   if (customPath) {
     try {
@@ -1054,9 +1053,25 @@ app.whenReady().then(() => {
         const syncData = JSON.parse(fs.readFileSync(syncFilePath, 'utf-8'));
         const dbLastUpdated = sqliteStorage.getLastUpdated();
         const syncLastUpdated = syncData?.lastUpdated || 0;
-        // sync.json의 현재 상태를 기준점으로 기록 (이후 외부 변경 감지용)
         lastSyncWriteTimestamp = syncLastUpdated;
-        if (syncLastUpdated > dbLastUpdated) {
+
+        // 스키마 마이그레이션 직후에는 sync.json을 무조건 우선
+        // (구버전이 lastUpdated만 최신으로 올리고 데이터는 불완전한 경우 방지)
+        const justMigrated = (() => {
+          try {
+            const row = getDatabase()?.prepare("SELECT value FROM meta WHERE key = 'schema_just_migrated'").get();
+            if (row?.value === '1') {
+              getDatabase().prepare("DELETE FROM meta WHERE key = 'schema_just_migrated'").run();
+              return true;
+            }
+          } catch (_) {}
+          return false;
+        })();
+
+        if (justMigrated && syncLastUpdated > 0) {
+          console.log(`[Startup] 스키마 마이그레이션 직후 → sync.json 강제 로드 (sync: ${syncLastUpdated})`);
+          sqliteStorage.saveAllData(syncData);
+        } else if (syncLastUpdated > dbLastUpdated) {
           console.log(`[Startup] sync.json이 DB보다 최신 (sync: ${syncLastUpdated}, db: ${dbLastUpdated}) → DB에 반영`);
           sqliteStorage.saveAllData(syncData);
         } else {
@@ -1068,32 +1083,74 @@ app.whenReady().then(() => {
     }
   }
 
-  createWindow();
-  createTray();
   setupAutoUpdater();
 
-  // SQLite 기반 아카이빙
-  sqliteStorage.archiveOldData(ARCHIVE_DAYS);
+  // ── 시작 시 업데이트 확인 (데이터 동기화 전) ──
+  // 구버전이 데이터를 잘못 동기화하는 문제를 방지하기 위해
+  // 렌더러 로드와 데이터 동기화보다 업데이트를 먼저 확인합니다.
+  const proceedWithStartup = () => {
+    createWindow();
+    createTray();
 
-  // 충돌 파일 스캔 (watchDataFile 전에 기존 충돌 파일 정리)
-  if (customPath) scanAndProcessConflictFiles(customPath);
+    sqliteStorage.archiveOldData(ARCHIVE_DAYS);
 
-  watchDataFile(); // 파일 감시 시작 (아카이빙 후)
+    if (customPath) scanAndProcessConflictFiles(customPath);
 
-  // 자동 시작 설정 복원
-  try {
-    const settings = sqliteStorage.loadSettings() || {};
-    if (settings.autoLaunch === true) {
-      const current = app.getLoginItemSettings().openAtLogin;
-      if (!current) {
-        app.setLoginItemSettings({ openAtLogin: true });
-        console.log('[Settings] 자동 시작 설정 복원 완료');
+    watchDataFile();
+
+    try {
+      const settings = sqliteStorage.loadSettings() || {};
+      if (settings.autoLaunch === true) {
+        const current = app.getLoginItemSettings().openAtLogin;
+        if (!current) {
+          app.setLoginItemSettings({ openAtLogin: true });
+          console.log('[Settings] 자동 시작 설정 복원 완료');
+        }
       }
-    }
-  } catch (e) {}
+    } catch (e) {}
+  };
 
-  // 앱 시작 5초 후 업데이트 확인
-  if (!isDev) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
+  if (isDev) {
+    proceedWithStartup();
+  } else {
+    // 프로덕션: 업데이트 확인 후 진행
+    autoUpdater.checkForUpdates().then((result) => {
+      const currentVersion = app.getVersion();
+      const latestVersion = result?.updateInfo?.version;
+      const available = latestVersion && latestVersion !== currentVersion &&
+        latestVersion.localeCompare(currentVersion, undefined, { numeric: true }) > 0;
+
+      if (available) {
+        // 업데이트 발견 → 사용자에게 먼저 확인
+        const choice = dialog.showMessageBoxSync({
+          type: 'info',
+          title: 'TaskNote 업데이트',
+          message: `새 버전 v${latestVersion}이 있습니다.\n업데이트 후 실행하시겠습니까?`,
+          detail: '데이터 동기화 전에 최신 버전으로 업데이트하면\n데이터 충돌을 방지할 수 있습니다.',
+          buttons: ['업데이트 후 실행', '나중에'],
+          defaultId: 0,
+          cancelId: 1,
+        });
+
+        if (choice === 0) {
+          // 업데이트 다운로드 → 설치 → 재시작
+          console.log('[AutoUpdater] 시작 전 업데이트 시작:', latestVersion);
+          autoUpdater.downloadUpdate().then(() => {
+            autoUpdater.quitAndInstall(true, true);
+          }).catch((e) => {
+            console.error('[AutoUpdater] 다운로드 실패:', e.message);
+            proceedWithStartup(); // 실패 시 정상 시작
+          });
+        } else {
+          proceedWithStartup(); // 나중에 → 정상 시작
+        }
+      } else {
+        proceedWithStartup(); // 업데이트 없음 → 정상 시작
+      }
+    }).catch(() => {
+      proceedWithStartup(); // 확인 실패 → 정상 시작
+    });
+  }
 });
 app.on('window-all-closed', () => {
   if (dataWatcher) dataWatcher.close(); // 감시 종료
