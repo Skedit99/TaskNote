@@ -371,23 +371,35 @@ export default function useTaskData() {
         return;
       }
 
-      // import 실행: 로컬 이벤트 생성 + 매핑 저장을 순차적으로 처리
+      // import 실행: 로컬 이벤트 생성 + 완료 상태 반영 + 매핑 저장
       const importedPairs = [];
       updateData((d) => {
         if (!d.events) d.events = [];
         for (const ev of toImport) {
-          // updateData 내부에서 한번 더 중복 체크 (동시 호출 방어)
           if (d.events.some((e) => e.gcalSourceId === ev.gcalEventId)) continue;
+          // 같은 날짜+같은 이름의 이벤트가 이미 있으면 스킵 (updateData 내부 최종 방어)
+          const cleanName = (ev.summary || "").replace(/^\(완료\)\s*/, "");
+          if (d.events.some((e) => !e.deleted && e.date === ev.date && e.name === cleanName)) continue;
           const localId = generateId();
           d.events.push({
             id: localId,
-            name: ev.summary,
+            name: cleanName,
             description: ev.description || "",
             date: ev.date,
             time: ev.time || "",
             gcalSourceId: ev.gcalEventId,
             updatedAt: Date.now(),
           });
+          // 완료 상태가 있으면 completedToday에 추가
+          if (ev.isCompleted) {
+            if (!d.completedToday[ev.date]) d.completedToday[ev.date] = [];
+            if (!d.completedToday[ev.date].some((c) => c.taskId === localId)) {
+              d.completedToday[ev.date].push({
+                projectId: "event", taskId: localId,
+                completedAt: new Date().toISOString(), updatedAt: Date.now(),
+              });
+            }
+          }
           importedPairs.push({ localId, gcalEventId: ev.gcalEventId, date: ev.date });
         }
       });

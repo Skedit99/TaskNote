@@ -480,6 +480,9 @@ async function fetchGcalEvents({ timeMin, timeMax }) {
   const mapping = loadMapping();
 
   const pushedGcalIds = new Set(Object.values(mapping).map((m) => m.gcalEventId));
+  // 매핑이 비어있으면 DB 리셋 직후 → tasknote=true 이벤트도 포함 (전체 재연동)
+  const isFullReconcile = Object.keys(mapping).length === 0;
+  if (isFullReconcile) console.log('[GCal] 매핑 없음 → 전체 재연동 모드 (tasknote 이벤트 포함)');
 
   try {
     const res = await withRetry(() => calendar.events.list({
@@ -493,11 +496,15 @@ async function fetchGcalEvents({ timeMin, timeMax }) {
 
     const gcalEvents = res.data.items || [];
     const importable = [];
+    // 중복 감지: 같은 날짜+같은 이름(완료 태그 제거)은 하나만 (최신 것 유지)
+    const seen = new Map(); // "date:cleanName" → index in importable
 
     for (const ev of gcalEvents) {
-      if (pushedGcalIds.has(ev.id)) continue;
-      if (ev.extendedProperties?.private?.tasknote === 'true') continue;
       if (ev.status === 'cancelled') continue;
+      if (!isFullReconcile) {
+        if (pushedGcalIds.has(ev.id)) continue;
+        if (ev.extendedProperties?.private?.tasknote === 'true') continue;
+      }
 
       let date = '';
       let time = '';
@@ -512,17 +519,35 @@ async function fetchGcalEvents({ timeMin, timeMax }) {
 
       if (!date) continue;
 
+      const rawSummary = ev.summary || '(제목 없음)';
+      const isCompleted = rawSummary.startsWith('(완료)');
+      const cleanName = rawSummary.replace(/^\(완료\)\s*/, '');
+
+      // 중복 제거: 같은 날짜+이름이면 (완료) 버전을 우선
+      const dedupeKey = `${date}:${cleanName}`;
+      if (seen.has(dedupeKey)) {
+        const existingIdx = seen.get(dedupeKey);
+        const existing = importable[existingIdx];
+        // (완료) 버전이 있으면 그걸 유지
+        if (isCompleted && !existing.isCompleted) {
+          importable[existingIdx] = { gcalEventId: ev.id, summary: cleanName, description: ev.description || '', date, time, isCompleted: true };
+        }
+        continue;
+      }
+
+      seen.set(dedupeKey, importable.length);
       importable.push({
         gcalEventId: ev.id,
-        summary: ev.summary || '(제목 없음)',
+        summary: cleanName,
         description: ev.description || '',
         date,
         time,
+        isCompleted,
       });
     }
 
-    console.log(`[GCal] Fetch 완료: ${gcalEvents.length}건 중 ${importable.length}건 import 가능`);
-    return { success: true, events: importable };
+    console.log(`[GCal] Fetch 완료: ${gcalEvents.length}건 중 ${importable.length}건 import 가능 (재연동: ${isFullReconcile})`);
+    return { success: true, events: importable, isFullReconcile };
   } catch (err) {
     console.error('[GCal] Fetch 실패:', err.message);
     return { success: false, events: [], error: err.message };
